@@ -1,0 +1,157 @@
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-body);
+  overflow: hidden;
+}
+.lock-bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 30% 20%, rgba(99,102,241,0.08), transparent 60%),
+              radial-gradient(ellipse at 70% 80%, rgba(139,92,246,0.06), transparent 60%);
+}
+.lock-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.15;
+}
+.lock-orb-1 { width: 300px; height: 300px; background: #6366f1; top: -60px; left: -60px; }
+.lock-orb-2 { width: 200px; height: 200px; background: #a78bfa; bottom: 10%; right: -40px; }
+.lock-orb-3 { width: 160px; height: 160px; background: #8b5cf6; top: 40%; left: 60%; }
+
+.lock-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  max-width: 340px;
+  width: 100%;
+}
+.lock-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+.lock-logo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lock-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.lock-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* PIN Dots */
+.pin-dots {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 0;
+}
+.pin-dots.shake {
+  animation: shake 0.5s ease;
+}
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-bright);
+  transition: all 0.2s ease;
+}
+.pin-dot.filled {
+  background: var(--accent-indigo);
+  border-color: var(--accent-indigo);
+  transform: scale(1.1);
+}
+.pin-dot.success {
+  background: var(--accent-success);
+  border-color: var(--accent-success);
+}
+.pin-dot.error {
+  border-color: var(--accent-error);
+}
+
+.pin-error {
+  color: var(--accent-error);
+  font-size: 0.8rem;
+  text-align: center;
+  min-height: 1.2rem;
+}
+
+/* Keypad */
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 260px;
+}
+.pin-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  transition: all var(--transition-fast);
+  color: var(--text-primary);
+}
+.pin-key:active {
+  background: rgba(99, 102, 241, 0.15);
+  transform: scale(0.95);
+}
+.pin-key-num {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.pin-key-ghost {
+  visibility: hidden;
+}
+.pin-key-action {
+  color: var(--text-secondary);
+}
+
+/* Bottom links */
+.lock-links {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.lock-link {
+  font-size: 0.8rem;
+  color: var(--accent-indigo);
+  font-weight: 500;
+}
+.lock-link:hover { text-decoration: underline; }
+.lock-link-divider {
+  color: var(--text-muted);
+  font-size: 0.6rem;
+}
+
+/* Security Question Form */
+.sec-q-form {
+  width: 100%;
+  padding: 0.5rem 0;
+}
+.sec-q-instruction {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}

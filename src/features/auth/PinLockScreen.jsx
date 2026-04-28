@@ -1,0 +1,256 @@
+import { useState, useEffect, useCallback } from 'react';
+import { hashPin, hashSecurityAnswer } from '../../services/crypto';
+import { storage } from '../../services/storage';
+import { SECURITY_QUESTIONS } from '../../services/categories';
+import useStore from '../../store/useStore';
+import './PinLockScreen.css';
+
+const PIN_LENGTH = 4;
+
+export function PinLockScreen() {
+  const setLocked = useStore((s) => s.setLocked);
+
+  const [pin, setPin] = useState('');
+  const [mode, setMode] = useState(storage.hasPinSet() ? 'enter' : 'create');
+  // modes: create, confirm, enter, recovery
+  const [tempPin, setTempPin] = useState('');
+  const [error, setError] = useState('');
+  const [shake, setShake] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [showSecQSetup, setShowSecQSetup] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [secQIndex, setSecQIndex] = useState('0');
+  const [secQAnswer, setSecQAnswer] = useState('');
+  const [recoveryAnswer, setRecoveryAnswer] = useState('');
+
+  const subtitle = {
+    create: 'Create a 4-digit PIN',
+    confirm: 'Confirm your PIN',
+    enter: 'Enter your PIN to continue',
+    recovery: 'Recover PIN',
+  }[mode] || '';
+
+  const doShake = useCallback(() => {
+    setShake(true);
+    setTimeout(() => {
+      setShake(false);
+      setPin('');
+    }, 600);
+  }, []);
+
+  const unlock = useCallback(() => {
+    setSuccess(true);
+    setTimeout(() => setLocked(false), 500);
+  }, [setLocked]);
+
+  // Handle PIN completion
+  useEffect(() => {
+    if (pin.length !== PIN_LENGTH) return;
+
+    const timer = setTimeout(async () => {
+      if (mode === 'create') {
+        setTempPin(pin);
+        setMode('confirm');
+        setPin('');
+        setError('');
+      } else if (mode === 'confirm') {
+        if (pin === tempPin) {
+          const hash = await hashPin(pin);
+          storage.savePinHash(hash);
+          setTempPin('');
+          setShowSecQSetup(true);
+        } else {
+          setError("PINs don't match. Try again.");
+          doShake();
+          setMode('create');
+          setTempPin('');
+        }
+      } else if (mode === 'enter') {
+        const hash = await hashPin(pin);
+        const stored = storage.getPinHash();
+        if (hash === stored) {
+          unlock();
+        } else {
+          setError('Wrong PIN. Try again.');
+          doShake();
+        }
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [pin, mode, tempPin, doShake, unlock]);
+
+  // Keyboard support
+  useEffect(() => {
+    const handler = (e) => {
+      if (showSecQSetup || showRecovery) return;
+      if (e.key >= '0' && e.key <= '9') {
+        setPin((p) => (p.length < PIN_LENGTH ? p + e.key : p));
+        setError('');
+      } else if (e.key === 'Backspace') {
+        setPin((p) => p.slice(0, -1));
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showSecQSetup, showRecovery]);
+
+  const addDigit = (d) => {
+    if (pin.length >= PIN_LENGTH) return;
+    setPin((p) => p + d);
+    setError('');
+  };
+
+  const removeDigit = () => setPin((p) => p.slice(0, -1));
+
+  const handleSaveSecQ = async () => {
+    if (!secQAnswer.trim()) { setError('Please provide an answer'); return; }
+    const hash = await hashSecurityAnswer(secQAnswer);
+    storage.saveSecQ(secQIndex, hash);
+    setShowSecQSetup(false);
+    unlock();
+  };
+
+  const handleVerifyRecovery = async () => {
+    if (!recoveryAnswer.trim()) { setError('Please provide an answer'); return; }
+    const hash = await hashSecurityAnswer(recoveryAnswer);
+    const storedHash = storage.getSecQHash();
+    if (hash === storedHash) {
+      storage.removePinHash();
+      storage.removeSecQ();
+      setShowRecovery(false);
+      setMode('create');
+      setPin('');
+      setTempPin('');
+      setError('');
+      setRecoveryAnswer('');
+    } else {
+      setError('Incorrect answer. Try again.');
+    }
+  };
+
+  const recoveryQuestion = (() => {
+    const idx = storage.getSecQIndex();
+    if (idx !== null && SECURITY_QUESTIONS[idx]) return SECURITY_QUESTIONS[idx];
+    return null;
+  })();
+
+  // Security Question Setup Panel
+  if (showSecQSetup) {
+    return (
+      <div className="lock-screen">
+        <div className="lock-bg" />
+        <div className="lock-orb lock-orb-1" />
+        <div className="lock-orb lock-orb-2" />
+        <div className="lock-container">
+          <LockLogo />
+          <p className="lock-subtitle">Add a recovery method</p>
+          <div className="sec-q-form">
+            <p className="sec-q-instruction">Set up a security question so you can recover your PIN if you forget it.</p>
+            <label className="form-label">Security Question</label>
+            <select className="form-select" value={secQIndex} onChange={(e) => setSecQIndex(e.target.value)}>
+              {SECURITY_QUESTIONS.map((q, i) => <option key={i} value={i}>{q}</option>)}
+            </select>
+            <label className="form-label" style={{ marginTop: '1rem' }}>Your Answer</label>
+            <input className="form-input" type="text" value={secQAnswer} onChange={(e) => setSecQAnswer(e.target.value)} placeholder="Type your answer..." />
+            {error && <p className="pin-error">{error}</p>}
+            <button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} onClick={handleSaveSecQ}>Save & Continue</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Recovery Panel
+  if (showRecovery) {
+    return (
+      <div className="lock-screen">
+        <div className="lock-bg" />
+        <div className="lock-orb lock-orb-1" />
+        <div className="lock-orb lock-orb-2" />
+        <div className="lock-container">
+          <LockLogo />
+          <p className="lock-subtitle">Recover PIN</p>
+          <div className="sec-q-form">
+            <label className="form-label">{recoveryQuestion || 'No security question set.'}</label>
+            <input className="form-input" type="text" value={recoveryAnswer} onChange={(e) => setRecoveryAnswer(e.target.value)} placeholder="Type your answer..." disabled={!recoveryQuestion} />
+            {error && <p className="pin-error">{error}</p>}
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setShowRecovery(false); setError(''); }}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleVerifyRecovery} disabled={!recoveryQuestion}>Verify</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main PIN Entry
+  return (
+    <div className="lock-screen">
+      <div className="lock-bg" />
+      <div className="lock-orb lock-orb-1" />
+      <div className="lock-orb lock-orb-2" />
+      <div className="lock-orb lock-orb-3" />
+
+      <div className="lock-container">
+        <LockLogo />
+        <p className="lock-subtitle">{subtitle}</p>
+
+        {/* PIN Dots */}
+        <div className={`pin-dots ${shake ? 'shake' : ''}`}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className={`pin-dot ${i < pin.length ? 'filled' : ''} ${success ? 'success' : ''} ${shake ? 'error' : ''}`} />
+          ))}
+        </div>
+
+        {error && <p className="pin-error">{error}</p>}
+
+        {/* Keypad */}
+        <div className="pin-keypad">
+          {['1','2','3','4','5','6','7','8','9'].map((d) => (
+            <button key={d} className="pin-key" onClick={() => addDigit(d)}>
+              <span className="pin-key-num">{d}</span>
+            </button>
+          ))}
+          <div className="pin-key pin-key-ghost" />
+          <button className="pin-key" onClick={() => addDigit('0')}>
+            <span className="pin-key-num">0</span>
+          </button>
+          <button className="pin-key pin-key-action" onClick={removeDigit} aria-label="Backspace">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 12H9M9 12l4-4M9 12l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+        </div>
+
+        {/* Bottom links */}
+        {mode === 'enter' && (
+          <div className="lock-links">
+            <button className="lock-link" onClick={() => {
+              storage.removePinHash();
+              setMode('create');
+              setPin('');
+              setError('');
+            }}>Change PIN</button>
+            <span className="lock-link-divider">•</span>
+            <button className="lock-link" onClick={() => { setShowRecovery(true); setError(''); }}>Forgot PIN?</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LockLogo() {
+  return (
+    <div className="lock-logo">
+      <div className="lock-logo-icon">
+        <svg width="36" height="36" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="9" fill="url(#lg2)"/>
+          <path d="M10 20V16M16 20V12M22 20V9" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
+          <defs><linearGradient id="lg2" x1="0" y1="0" x2="32" y2="32"><stop stopColor="#6366f1"/><stop offset="1" stopColor="#a78bfa"/></linearGradient></defs>
+        </svg>
+      </div>
+      <h1 className="lock-title">WealthPulse</h1>
+    </div>
+  );
+}

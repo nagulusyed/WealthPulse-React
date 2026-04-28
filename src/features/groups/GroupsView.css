@@ -1,0 +1,112 @@
+.groups-view { max-width: 700px; margin: 0 auto; }
+
+/* People Section */
+.people-section {
+  margin-bottom: 1.25rem;
+}
+.people-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.avatar-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-card);
+  border: var(--border-card);
+  border-radius: var(--radius-full);
+  padding: 0.35rem 0.85rem 0.35rem 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+.avatar-chip.clickable {
+  cursor: pointer;
+}
+.avatar-chip.clickable:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-bright);
+}
+.avatar-sm {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+.chip-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.chip-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.chip-balance {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.chip-balance.positive { color: var(--accent-green); }
+.chip-balance.negative { color: var(--accent-red); }
+
+/* Groups List */
+.groups-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.group-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-card);
+  border: var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.group-card:hover { background: var(--bg-card-hover); }
+
+.group-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent-indigo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.group-details { flex: 1; min-width: 0; }
+.group-name { font-size: 0.9rem; font-weight: 600; }
+.group-meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+
+.balance-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+.balance-badge.positive { background: rgba(46,204,113,0.1); color: var(--accent-green); }
+.balance-badge.negative { background: rgba(231,76,60,0.1); color: var(--accent-red); }
+.balance-badge.neutral { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+
+.member-checkboxes { display: flex; flex-direction: column; gap: 0.4rem; }
+.member-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.member-checkbox input { accent-color: var(--accent-indigo); width: 16px; height: 16px; }

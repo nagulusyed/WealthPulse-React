@@ -1,0 +1,32 @@
+.mobile-header {
+  display: none;
+  position: sticky;
+  top: 0;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.75rem 1rem;
+  padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  z-index: 50;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-primary);
+}
+@media (max-width: 768px) {
+  .mobile-header { display: flex; }
+}
+
+.menu-btn {
+  color: var(--text-secondary);
+  padding: 0.35rem;
+}
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.privacy-btn {
+  color: var(--text-secondary);
+  padding: 0.35rem;
+}

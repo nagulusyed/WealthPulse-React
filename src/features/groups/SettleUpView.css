@@ -1,0 +1,48 @@
+.settle-view { max-width: 800px; margin: 0 auto; }
+
+.settle-summary-card {
+  background: var(--bg-card);
+  border: var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  text-align: center;
+  margin: 1.25rem 0;
+}
+.settle-summary-row {
+  display: flex;
+  justify-content: center;
+  gap: 2.5rem;
+  margin-top: 0.75rem;
+}
+.settle-total { font-weight: 600; font-size: 1rem; }
+
+.settle-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+@media (max-width: 600px) { .settle-columns { grid-template-columns: 1fr; } }
+
+.settle-section { }
+.section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.settle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settle-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-card);
+  border: var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+}
