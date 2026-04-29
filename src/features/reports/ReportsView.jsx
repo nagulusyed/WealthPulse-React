@@ -7,21 +7,44 @@ export function ReportsView() {
   const transactions = useStore((s) => s.getMonthlyTransactions());
   const selectedMonth = useStore((s) => s.selectedMonth);
   const allTransactions = useStore((s) => s.transactions);
+  const budgets = useStore((s) => s.budgets);
   const privacyMode = useStore((s) => s.privacyMode);
 
   const blur = privacyMode ? 'private-blur' : '';
 
   const report = useMemo(() => {
-    const expenses = transactions.filter((t) => t.type === 'expense');
+    const isSettlement = (t) => t.isSettlement || (t.notes && t.notes.startsWith('Payment via'));
+
+    const grossExpenseNoSet = transactions.filter((t) => t.type === 'expense' && !isSettlement(t));
+    const totalGrossExpense = grossExpenseNoSet.reduce((s, t) => s + t.amount, 0);
+    const receivedSettlements = transactions.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+
+    let netTransactions = transactions;
+    if (totalGrossExpense > 0 && receivedSettlements > 0) {
+      const ratio = receivedSettlements / totalGrossExpense;
+      netTransactions = transactions.map((t) => {
+        if (t.type === 'expense' && !isSettlement(t)) {
+          return { ...t, amount: t.amount * (1 - ratio) };
+        }
+        return t;
+      });
+    }
+
+    const expenses = netTransactions.filter((t) => t.type === 'expense' && !isSettlement(t));
     const totalSpent = expenses.reduce((s, t) => s + t.amount, 0);
-    const totalIncome = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const totalIncome = netTransactions.filter((t) => t.type === 'income' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
 
     // Previous month
     const pm = new Date(selectedMonth);
     pm.setMonth(pm.getMonth() - 1);
     const pmKey = getMonthKey(pm);
-    const prevExpenses = allTransactions.filter((t) => t.date.startsWith(pmKey) && t.type === 'expense');
-    const prevSpent = prevExpenses.reduce((s, t) => s + t.amount, 0);
+    const prevTxns = allTransactions.filter((t) => t.date.startsWith(pmKey));
+
+    const prevGrossExpenseNoSet = prevTxns.filter((t) => t.type === 'expense' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    const prevReceivedSet = prevTxns.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    const prevSentSet = prevTxns.filter((t) => t.type === 'expense' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+
+    const prevSpent = prevGrossExpenseNoSet - prevReceivedSet + prevSentSet;
     const diff = totalSpent - prevSpent;
     const pct = prevSpent > 0 ? Math.round((diff / prevSpent) * 100) : 0;
 
@@ -30,7 +53,10 @@ export function ReportsView() {
     expenses.forEach((t) => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
     const sorted = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).map(([catId, amount]) => {
       const cat = getCategory('expense', catId);
-      return { ...cat, amount, pct: totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0 };
+      const limit = budgets[catId] || 0;
+      const budgetPct = limit > 0 ? Math.min(Math.round((amount / limit) * 100), 100) : 0;
+      const spendPct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
+      return { ...cat, amount, pct: budgetPct, spendPct, limit };
     });
 
     // Top insights
@@ -38,7 +64,7 @@ export function ReportsView() {
     const avgDaily = totalSpent / new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
 
     return { totalSpent, totalIncome, diff, pct, categories: sorted, topCat, avgDaily, prevSpent };
-  }, [transactions, selectedMonth, allTransactions]);
+  }, [transactions, selectedMonth, allTransactions, budgets]);
 
   return (
     <div className="animate-in" style={{ maxWidth: 700, margin: '0 auto' }}>
@@ -65,7 +91,7 @@ export function ReportsView() {
         <div className="card" style={{ marginBottom: '1rem' }}>
           <h3 className="card-title">Insight</h3>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Your biggest spending category this month is <strong style={{ color: report.topCat.color }}>{report.topCat.emoji} {report.topCat.name}</strong> at <strong className={blur}>{formatCurrency(report.topCat.amount)}</strong> ({report.topCat.pct}% of total spending).
+            Your biggest spending category this month is <strong style={{ color: report.topCat.color }}>{report.topCat.emoji} {report.topCat.name}</strong> at <strong className={blur}>{formatCurrency(report.topCat.amount)}</strong> ({report.topCat.spendPct}% of total spending).
           </p>
         </div>
       )}
@@ -84,7 +110,7 @@ export function ReportsView() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
                     <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{cat.name}</span>
                     <span className={blur} style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      {formatCurrency(cat.amount)} <span style={{ color: '#fff', fontWeight: 600 }}>{cat.pct}%</span>
+                      {formatCurrency(cat.amount)} <span style={{ color: '#fff', fontWeight: 600 }}>{cat.pct}% used</span>
                     </span>
                   </div>
                   <div style={{ height: 4, background: 'var(--border-subtle)', borderRadius: 2, overflow: 'hidden' }}>

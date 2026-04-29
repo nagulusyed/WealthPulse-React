@@ -21,27 +21,74 @@ export function Dashboard({ onAddTransaction }) {
   const people = useStore((s) => s.people);
   const navigate = useNavigate();
 
+  const isSettlement = (t) => t.isSettlement || (t.notes && t.notes.startsWith('Payment via'));
+
+  const netTransactions = useMemo(() => {
+    const grossExpenseNoSet = transactions.filter((t) => t.type === 'expense' && !isSettlement(t));
+    const totalGrossExpense = grossExpenseNoSet.reduce((s, t) => s + t.amount, 0);
+    const receivedSettlements = transactions.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    
+    if (totalGrossExpense === 0 || receivedSettlements === 0) return transactions;
+    const ratio = receivedSettlements / totalGrossExpense;
+    
+    return transactions.map((t) => {
+      if (t.type === 'expense' && !isSettlement(t)) {
+        return { ...t, amount: t.amount * (1 - ratio) };
+      }
+      return t;
+    });
+  }, [transactions]);
+
+  const netAllTransactions = useMemo(() => {
+    const grossExpenseNoSet = allTransactions.filter((t) => t.type === 'expense' && !isSettlement(t));
+    const totalGrossExpense = grossExpenseNoSet.reduce((s, t) => s + t.amount, 0);
+    const receivedSettlements = allTransactions.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    
+    if (totalGrossExpense === 0 || receivedSettlements === 0) return allTransactions;
+    const ratio = receivedSettlements / totalGrossExpense;
+    
+    return allTransactions.map((t) => {
+      if (t.type === 'expense' && !isSettlement(t)) {
+        return { ...t, amount: t.amount * (1 - ratio) };
+      }
+      return t;
+    });
+  }, [allTransactions]);
+
   const summary = useMemo(() => {
-    const incomeTxns = transactions.filter((t) => t.type === 'income');
-    const expenseTxns = transactions.filter((t) => t.type === 'expense');
-    const income = incomeTxns.reduce((s, t) => s + t.amount, 0);
-    const expenses = expenseTxns.reduce((s, t) => s + t.amount, 0);
+    const grossIncome = netTransactions.filter((t) => t.type === 'income' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    const netExpenseNoSet = netTransactions.filter((t) => t.type === 'expense' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    const sentSettlements = netTransactions.filter((t) => t.type === 'expense' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    
+    const expenses = netExpenseNoSet + sentSettlements;
+    const income = grossIncome;
     const balance = income - expenses;
     const savingsRate = income > 0 ? Math.round(((income - expenses) / income) * 100) : 0;
+    
+    const incomeTxns = netTransactions.filter((t) => t.type === 'income' && !isSettlement(t));
+    const expenseTxns = netTransactions.filter((t) => t.type === 'expense' || isSettlement(t));
     const incomeSources = new Set(incomeTxns.map((t) => t.category)).size;
     const expenseCategories = new Set(expenseTxns.map((t) => t.category)).size;
+    
     return { income, expenses, balance, savingsRate, incomeSources, expenseCategories };
-  }, [transactions]);
+  }, [netTransactions]);
 
   const prevMonthData = useMemo(() => {
     const pm = new Date(selectedMonth);
     pm.setMonth(pm.getMonth() - 1);
     const key = getMonthKey(pm);
-    const prevTxns = allTransactions.filter((t) => t.date.startsWith(key));
-    const prevIncome = prevTxns.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const prevExpenses = prevTxns.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const prevTxns = netAllTransactions.filter((t) => t.date.startsWith(key));
+    
+    const prevGrossIncome = prevTxns.filter((t) => t.type === 'income' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    const prevGrossExpenseNoSet = prevTxns.filter((t) => t.type === 'expense' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    const prevReceivedSet = prevTxns.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    const prevSentSet = prevTxns.filter((t) => t.type === 'expense' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    
+    const prevExpenses = prevGrossExpenseNoSet - prevReceivedSet + prevSentSet;
+    const prevIncome = prevGrossIncome;
+    
     return { income: prevIncome, expenses: prevExpenses, balance: prevIncome - prevExpenses, hasData: prevTxns.length > 0 };
-  }, [selectedMonth, allTransactions]);
+  }, [selectedMonth, netAllTransactions]);
 
   const trend = summary.balance - prevMonthData.balance;
   const recentTxns = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
@@ -49,14 +96,14 @@ export function Dashboard({ onAddTransaction }) {
   const budgetData = useMemo(() => {
     return CATEGORIES.expense
       .map((cat) => {
-        const spent = transactions.filter((t) => t.type === 'expense' && t.category === cat.id).reduce((s, t) => s + t.amount, 0);
+        const spent = netTransactions.filter((t) => t.type === 'expense' && t.category === cat.id).reduce((s, t) => s + t.amount, 0);
         const limit = budgets[cat.id] || 0;
         const pct = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
         return { ...cat, spent, limit, pct };
       })
       .filter((b) => b.limit > 0)
       .sort((a, b) => b.pct - a.pct);
-  }, [transactions, budgets]);
+  }, [netTransactions, budgets]);
 
   const groupsData = useMemo(() => {
     const store = useStore.getState();
@@ -77,8 +124,9 @@ export function Dashboard({ onAddTransaction }) {
   }, [groups, groupExpenses]);
 
   const insight = useMemo(() => {
-    if (transactions.length === 0) return null;
-    const expenses = transactions.filter((t) => t.type === 'expense');
+    if (netTransactions.length === 0) return null;
+    const isSettlement = (t) => t.isSettlement || (t.notes && t.notes.startsWith('Payment via'));
+    const expenses = netTransactions.filter((t) => t.type === 'expense' && !isSettlement(t));
     if (expenses.length === 0) return null;
     const catTotals = {};
     expenses.forEach((t) => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
@@ -90,14 +138,14 @@ export function Dashboard({ onAddTransaction }) {
     const pm = new Date(selectedMonth);
     pm.setMonth(pm.getMonth() - 1);
     const pmKey = getMonthKey(pm);
-    const prevCatSpend = allTransactions.filter((t) => t.date.startsWith(pmKey) && t.type === 'expense' && t.category === topCatId).reduce((s, t) => s + t.amount, 0);
+    const prevCatSpend = netAllTransactions.filter((t) => t.date.startsWith(pmKey) && t.type === 'expense' && t.category === topCatId).reduce((s, t) => s + t.amount, 0);
     if (prevCatSpend > 0) {
       const diff = topCatAmount - prevCatSpend;
       const pct = Math.round(Math.abs(diff / prevCatSpend) * 100);
       return diff > 0 ? `You spent ${pct}% more on ${cat.name} compared to last month.` : `You spent ${pct}% less on ${cat.name} compared to last month.`;
     }
     return `Your top spending category this month is ${cat.name} at ${formatCurrency(topCatAmount)}.`;
-  }, [transactions, selectedMonth, allTransactions]);
+  }, [netTransactions, selectedMonth, netAllTransactions]);
 
   const blur = privacyMode ? 'private-blur' : '';
   const getPersonById = (id) => people.find((p) => p.id === id);
@@ -153,7 +201,7 @@ export function Dashboard({ onAddTransaction }) {
         </div>
         <div className="chart-card" style={{ flex: 1 }}>
           <h3 className="card-title">Spending by Category</h3>
-          <CategoryDoughnut transactions={transactions} />
+          <CategoryDoughnut transactions={netTransactions} />
           <button className="view-link" onClick={() => navigate('/reports')}>View full report →</button>
         </div>
         <div className="dash-right-col">

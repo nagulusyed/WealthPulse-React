@@ -163,19 +163,93 @@ const useStore = create((set, get) => ({
     const exp = { ...expense, id: expense.id || generateId('e_'), settledBy: expense.settledBy || [], createdAt: new Date().toISOString() };
     const updated = [...get().groupExpenses, exp];
     storage.saveGroupExpenses(updated);
+    
+    if (exp.paidBy === 'self') {
+      const group = get().getGroupById(exp.groupId);
+      get().addTransaction({
+        id: `group_exp_${exp.id}`,
+        type: 'expense',
+        amount: exp.amount,
+        category: exp.category || 'other_exp',
+        date: exp.date,
+        description: `Group: ${group?.name || 'Group'} - ${exp.description}`,
+        notes: 'Splitwise sync',
+      });
+    }
+    
     set({ groupExpenses: updated });
     return exp;
   },
 
   updateGroupExpense: (id, data) => {
+    const oldExp = get().groupExpenses.find((e) => e.id === id);
     const updated = get().groupExpenses.map((e) => e.id === id ? { ...e, ...data } : e);
     storage.saveGroupExpenses(updated);
+    
+    const updatedExp = updated.find((e) => e.id === id);
+    if (updatedExp) {
+      const txnId = `group_exp_${id}`;
+      let existingTxn = get().transactions.find((t) => t.id === txnId);
+      
+      if (!existingTxn && oldExp && oldExp.paidBy === 'self') {
+        existingTxn = get().transactions.find((t) => 
+          t.notes === 'Splitwise sync' && 
+          t.amount === oldExp.amount && 
+          t.date === oldExp.date
+        );
+      }
+      
+      if (updatedExp.paidBy === 'self') {
+        const group = get().getGroupById(updatedExp.groupId);
+        const txnData = {
+          type: 'expense',
+          amount: updatedExp.amount,
+          category: updatedExp.category || 'other_exp',
+          date: updatedExp.date,
+          description: `Group: ${group?.name || 'Group'} - ${updatedExp.description}`,
+          notes: 'Splitwise sync',
+        };
+        
+        if (existingTxn) {
+          if (existingTxn.id !== txnId) {
+            get().deleteTransaction(existingTxn.id);
+            get().addTransaction({ id: txnId, ...txnData });
+          } else {
+            get().updateTransaction(txnId, txnData);
+          }
+        } else {
+          get().addTransaction({ id: txnId, ...txnData });
+        }
+      } else {
+        if (existingTxn) {
+          get().deleteTransaction(existingTxn.id);
+        }
+      }
+    }
+    
     set({ groupExpenses: updated });
   },
 
   deleteGroupExpense: (id) => {
+    const oldExp = get().groupExpenses.find((e) => e.id === id);
     const updated = get().groupExpenses.filter((e) => e.id !== id);
     storage.saveGroupExpenses(updated);
+    
+    const txnId = `group_exp_${id}`;
+    let existingTxn = get().transactions.find((t) => t.id === txnId);
+    
+    if (!existingTxn && oldExp && oldExp.paidBy === 'self') {
+      existingTxn = get().transactions.find((t) => 
+        t.notes === 'Splitwise sync' && 
+        t.amount === oldExp.amount && 
+        t.date === oldExp.date
+      );
+    }
+    
+    if (existingTxn) {
+      get().deleteTransaction(existingTxn.id);
+    }
+    
     set({ groupExpenses: updated });
   },
 

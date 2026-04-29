@@ -17,7 +17,6 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 input, select, textarea { font-family: inherit; color: inherit; }
 ul, ol { list-style: none; }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
@@ -41,7 +40,8 @@ ul, ol { list-style: none; }
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
-    padding: 0rem 0.75rem 5rem;
+    /* Enough top padding so content doesn't hide behind sticky header */
+    padding: 1rem 0.75rem 5rem;
   }
 }
 
@@ -60,6 +60,10 @@ ul, ol { list-style: none; }
 }
 @media (max-width: 768px) {
   .view-title { font-size: 1.1rem; }
+  .txn-header .btn {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.78rem;
+  }
 }
 .view-subtitle {
   font-size: 0.8rem;
@@ -110,10 +114,7 @@ ul, ol { list-style: none; }
   50% { transform: translateX(8px); }
   75% { transform: translateX(-4px); }
 }
-
-.animate-in {
-  animation: fadeSlideIn 0.35s ease forwards;
-}
+.animate-in { animation: fadeSlideIn 0.35s ease forwards; }
 
 /* Privacy Blur */
 .private-blur {
@@ -144,4 +145,25 @@ ul, ol { list-style: none; }
 .toast.visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* ── Modal button row — mobile wrap fix ── */
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.modal-actions .btn-danger {
+  margin-right: auto;
+}
+@media (max-width: 400px) {
+  .modal-actions {
+    gap: 0.5rem;
+  }
+  .modal-actions .btn {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.78rem;
+  }
 }

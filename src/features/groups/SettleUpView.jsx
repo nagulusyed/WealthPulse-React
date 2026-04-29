@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import useStore from '../../store/useStore';
 import { formatCurrency } from '../../utils/formatters';
-import { Modal } from '../../components/ui/Modal';
+import { SettleModal } from './SettleModal';
 import './SettleUpView.css';
 
 export function SettleUpView() {
@@ -12,8 +12,6 @@ export function SettleUpView() {
 
   const [showSettleModal, setShowSettleModal] = useState(false);
   const [settleData, setSettleData] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [syncPersonal, setSyncPersonal] = useState(false);
 
   const blur = privacyMode ? 'private-blur' : '';
 
@@ -34,34 +32,7 @@ export function SettleUpView() {
 
   const openSettleModal = (settlement) => {
     setSettleData(settlement);
-    setPaymentMethod('Cash');
-    setSyncPersonal(false);
     setShowSettleModal(true);
-  };
-
-  const handleSettle = (e) => {
-    e.preventDefault();
-    if (!settleData) return;
-
-    const store = useStore.getState();
-    store.settleDebt(settleData.from, settleData.to, settleData.groupId, settleData.amount);
-
-    if (syncPersonal) {
-      const isYouPaying = settleData.from === 'self';
-      const otherPerson = getPersonById(isYouPaying ? settleData.to : settleData.from);
-      const group = getGroupById(settleData.groupId);
-      store.addTransaction({
-        type: 'expense',
-        description: `Settlement to ${otherPerson?.name || 'Unknown'} (${group?.name || 'Group'})`,
-        amount: settleData.amount,
-        category: 'other_exp',
-        date: new Date().toISOString().split('T')[0],
-        notes: `Payment via ${paymentMethod}`,
-      });
-    }
-
-    setShowSettleModal(false);
-    setSettleData(null);
   };
 
   return (
@@ -148,42 +119,13 @@ export function SettleUpView() {
       )}
 
       {/* Settle Payment Modal */}
-      <Modal isOpen={showSettleModal} onClose={() => setShowSettleModal(false)} title="Record Payment" className="modal-small">
-        {settleData && (
-          <form onSubmit={handleSettle}>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
-              {settleData.from === 'self'
-                ? `You pay ${getPersonById(settleData.to)?.name || 'Unknown'} — ${formatCurrency(settleData.amount)}`
-                : `${getPersonById(settleData.from)?.name || 'Unknown'} pays you — ${formatCurrency(settleData.amount)}`
-              }
-            </p>
-
-            <div className="form-group">
-              <label className="form-label">Payment Method</label>
-              <div className="type-toggle">
-                {['Cash', 'UPI', 'Bank'].map((m) => (
-                  <button key={m} type="button" className={`type-btn ${paymentMethod === m ? 'active' : ''}`} onClick={() => setPaymentMethod(m)}>{m}</button>
-                ))}
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500 }}>
-                <input type="checkbox" checked={syncPersonal} onChange={(e) => setSyncPersonal(e.target.checked)} style={{ width: 20, height: 20, accentColor: 'var(--accent-indigo)' }} />
-                <span style={{ color: 'var(--text-primary)' }}>Update in personal finance</span>
-              </label>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.4rem', marginLeft: '2.5rem' }}>
-                This will add a transaction to your personal tracker
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowSettleModal(false)}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Confirm Payment</button>
-            </div>
-          </form>
-        )}
-      </Modal>
+      {showSettleModal && (
+        <SettleModal
+          isOpen={showSettleModal}
+          onClose={() => { setShowSettleModal(false); setSettleData(null); }}
+          settleData={settleData}
+        />
+      )}
     </div>
   );
 }

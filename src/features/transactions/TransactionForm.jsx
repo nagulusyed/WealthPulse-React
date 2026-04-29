@@ -53,14 +53,9 @@ export function TransactionForm({ transaction, defaultType = 'expense', onClose 
     <>
       <Modal isOpen onClose={onClose} title={isEditing ? 'Edit Transaction' : 'Add Transaction'}>
         <form onSubmit={handleSubmit}>
-          {/* Type Toggle */}
           <div className="type-toggle">
-            <button type="button" className={`type-btn expense ${type === 'expense' ? 'active' : ''}`} onClick={() => handleTypeChange('expense')}>
-              Expense
-            </button>
-            <button type="button" className={`type-btn income ${type === 'income' ? 'active' : ''}`} onClick={() => handleTypeChange('income')}>
-              Income
-            </button>
+            <button type="button" className={`type-btn expense ${type === 'expense' ? 'active' : ''}`} onClick={() => handleTypeChange('expense')}>Expense</button>
+            <button type="button" className={`type-btn income ${type === 'income' ? 'active' : ''}`} onClick={() => handleTypeChange('income')}>Income</button>
           </div>
 
           <div className="form-group">
@@ -90,15 +85,13 @@ export function TransactionForm({ transaction, defaultType = 'expense', onClose 
             <input className="form-input" type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add a note..." maxLength={150} />
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+          <div className="modal-actions">
             {isEditing && (
-              <button type="button" className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)} style={{ flex: 0 }}>
-                Delete
-              </button>
+              <button type="button" className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>Delete</button>
             )}
             <div style={{ flex: 1 }} />
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary">{isEditing ? 'Save Changes' : 'Add Transaction'}</button>
+            <button type="submit" className="btn btn-primary">{isEditing ? 'Save' : 'Add'}</button>
           </div>
         </form>
       </Modal>

@@ -7,6 +7,23 @@ export function TrendBarChart({ selectedMonth, monthCount = 6 }) {
   const allTransactions = useStore((s) => s.transactions);
 
   const chartData = useMemo(() => {
+    const isSettlement = (t) => t.isSettlement || (t.notes && t.notes.startsWith('Payment via'));
+    
+    const grossExpenseNoSet = allTransactions.filter((t) => t.type === 'expense' && !isSettlement(t));
+    const totalGrossExpense = grossExpenseNoSet.reduce((s, t) => s + t.amount, 0);
+    const receivedSettlements = allTransactions.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+    
+    let netAllTransactions = allTransactions;
+    if (totalGrossExpense > 0 && receivedSettlements > 0) {
+      const ratio = receivedSettlements / totalGrossExpense;
+      netAllTransactions = allTransactions.map((t) => {
+        if (t.type === 'expense' && !isSettlement(t)) {
+          return { ...t, amount: t.amount * (1 - ratio) };
+        }
+        return t;
+      });
+    }
+
     const months = [];
     for (let i = monthCount - 1; i >= 0; i--) {
       const d = new Date(selectedMonth);
@@ -15,11 +32,16 @@ export function TrendBarChart({ selectedMonth, monthCount = 6 }) {
     }
     return months.map((m) => {
       const key = getMonthKey(m);
-      const txns = allTransactions.filter((t) => t.date.startsWith(key));
+      const txns = netAllTransactions.filter((t) => t.date.startsWith(key));
+      
+      const grossIncome = txns.filter((t) => t.type === 'income' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+      const netExpenseNoSet = txns.filter((t) => t.type === 'expense' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+      const sentSettlements = txns.filter((t) => t.type === 'expense' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
+      
       return {
         name: m.toLocaleDateString('en-US', { month: 'short' }),
-        Income: txns.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
-        Expenses: txns.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+        Income: grossIncome,
+        Expenses: netExpenseNoSet + sentSettlements,
       };
     });
   }, [allTransactions, selectedMonth, monthCount]);
