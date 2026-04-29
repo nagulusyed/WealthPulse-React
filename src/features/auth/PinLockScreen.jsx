@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { hashPin, hashSecurityAnswer } from '../../services/crypto';
 import { storage } from '../../services/storage';
 import { SECURITY_QUESTIONS } from '../../services/categories';
@@ -12,8 +12,6 @@ export function PinLockScreen() {
 
   const [pin, setPin] = useState('');
   const [mode, setMode] = useState(storage.hasPinSet() ? 'enter' : 'create');
-  // modes: create, confirm, enter, recovery
-  const [tempPin, setTempPin] = useState('');
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -23,12 +21,20 @@ export function PinLockScreen() {
   const [secQAnswer, setSecQAnswer] = useState('');
   const [recoveryAnswer, setRecoveryAnswer] = useState('');
 
+  // Use ref for firstPin to avoid stale closure issues
+  const firstPinRef = useRef(null);
+
   const subtitle = {
     create: 'Create a 4-digit PIN',
     confirm: 'Confirm your PIN',
     enter: 'Enter your PIN to continue',
-    recovery: 'Recover PIN',
   }[mode] || '';
+
+  const resetCreateFlow = useCallback(() => {
+    firstPinRef.current = null;
+    setPin('');
+    setMode('create');
+  }, []);
 
   const doShake = useCallback(() => {
     setShake(true);
@@ -49,21 +55,26 @@ export function PinLockScreen() {
 
     const timer = setTimeout(async () => {
       if (mode === 'create') {
-        setTempPin(pin);
+        // Step 1: Store first PIN, move to confirm
+        firstPinRef.current = pin;
         setMode('confirm');
         setPin('');
         setError('');
       } else if (mode === 'confirm') {
-        if (pin === tempPin) {
+        // Step 2: Validate against first PIN
+        if (pin === firstPinRef.current) {
+          // Match — save hash and proceed
           const hash = await hashPin(pin);
           storage.savePinHash(hash);
-          setTempPin('');
+          firstPinRef.current = null;
           setShowSecQSetup(true);
         } else {
-          setError("PINs don't match. Try again.");
+          // Mismatch — full reset to step 1
+          setError("PINs don't match. Start over.");
           doShake();
-          setMode('create');
-          setTempPin('');
+          firstPinRef.current = null;
+          // Reset to create after shake animation
+          setTimeout(() => setMode('create'), 600);
         }
       } else if (mode === 'enter') {
         const hash = await hashPin(pin);
@@ -78,7 +89,7 @@ export function PinLockScreen() {
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [pin, mode, tempPin, doShake, unlock]);
+  }, [pin, mode, doShake, unlock]);
 
   // Keyboard support
   useEffect(() => {
@@ -119,9 +130,7 @@ export function PinLockScreen() {
       storage.removePinHash();
       storage.removeSecQ();
       setShowRecovery(false);
-      setMode('create');
-      setPin('');
-      setTempPin('');
+      resetCreateFlow();
       setError('');
       setRecoveryAnswer('');
     } else {
@@ -135,7 +144,6 @@ export function PinLockScreen() {
     return null;
   })();
 
-  // Security Question Setup Panel
   if (showSecQSetup) {
     return (
       <div className="lock-screen">
@@ -161,7 +169,6 @@ export function PinLockScreen() {
     );
   }
 
-  // Recovery Panel
   if (showRecovery) {
     return (
       <div className="lock-screen">
@@ -185,28 +192,21 @@ export function PinLockScreen() {
     );
   }
 
-  // Main PIN Entry
   return (
     <div className="lock-screen">
       <div className="lock-bg" />
       <div className="lock-orb lock-orb-1" />
       <div className="lock-orb lock-orb-2" />
       <div className="lock-orb lock-orb-3" />
-
       <div className="lock-container">
         <LockLogo />
         <p className="lock-subtitle">{subtitle}</p>
-
-        {/* PIN Dots */}
         <div className={`pin-dots ${shake ? 'shake' : ''}`}>
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className={`pin-dot ${i < pin.length ? 'filled' : ''} ${success ? 'success' : ''} ${shake ? 'error' : ''}`} />
           ))}
         </div>
-
         {error && <p className="pin-error">{error}</p>}
-
-        {/* Keypad */}
         <div className="pin-keypad">
           {['1','2','3','4','5','6','7','8','9'].map((d) => (
             <button key={d} className="pin-key" onClick={() => addDigit(d)}>
@@ -221,16 +221,9 @@ export function PinLockScreen() {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 12H9M9 12l4-4M9 12l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
         </div>
-
-        {/* Bottom links */}
         {mode === 'enter' && (
           <div className="lock-links">
-            <button className="lock-link" onClick={() => {
-              storage.removePinHash();
-              setMode('create');
-              setPin('');
-              setError('');
-            }}>Change PIN</button>
+            <button className="lock-link" onClick={() => { storage.removePinHash(); resetCreateFlow(); setError(''); }}>Change PIN</button>
             <span className="lock-link-divider">•</span>
             <button className="lock-link" onClick={() => { setShowRecovery(true); setError(''); }}>Forgot PIN?</button>
           </div>

@@ -10,17 +10,15 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
   const getGroupById = useStore((s) => s.getGroupById);
   const addGroupExpense = useStore((s) => s.addGroupExpense);
   const updateGroupExpense = useStore((s) => s.updateGroupExpense);
-  const addTransaction = useStore((s) => s.addTransaction);
 
   const isEditing = !!expense;
 
-  // If no groupId, show group selector
   const [selectedGroupId, setSelectedGroupId] = useState(groupId || expense?.groupId || '');
   const [description, setDescription] = useState(expense?.description || '');
   const [amount, setAmount] = useState(expense?.amount || '');
   const [paidBy, setPaidBy] = useState(expense?.paidBy || 'self');
   const [date, setDate] = useState(expense?.date || new Date().toISOString().split('T')[0]);
-  const [category, setCategory] = useState(expense?.category || 'other_exp');
+  const [category, setCategory] = useState(expense?.category || 'food');
   const [splitMethod, setSplitMethod] = useState(expense?.splitMethod || 'equal');
   const [splitValues, setSplitValues] = useState({});
   const [validationMsg, setValidationMsg] = useState('');
@@ -29,7 +27,6 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
   const members = group?.memberIds || [];
   const amt = parseFloat(amount) || 0;
 
-  // Initialize split values when group or method changes
   useEffect(() => {
     if (!group) return;
     if (expense && isEditing) {
@@ -44,7 +41,6 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
     }
   }, [selectedGroupId, splitMethod]);
 
-  // Validation
   useEffect(() => {
     if (splitMethod === 'equal' || amt <= 0) { setValidationMsg(''); return; }
     let sum = 0;
@@ -90,6 +86,8 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
     if (isEditing) {
       updateGroupExpense(expense.id, data);
     } else {
+      // Store's addGroupExpense handles personal transaction sync automatically
+      // Do NOT call addTransaction here — it would create a duplicate
       addGroupExpense(data);
     }
     onClose();
@@ -102,7 +100,6 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
   return (
     <Modal isOpen onClose={onClose} title={isEditing ? 'Edit Expense' : 'Add Group Expense'} className="modal-large">
       <form onSubmit={handleSubmit}>
-        {/* Group selector (if no groupId provided) */}
         {!groupId && (
           <div className="form-group">
             <label className="form-label">Group</label>
@@ -144,7 +141,6 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
           </div>
         </div>
 
-        {/* Split Method */}
         <div style={{ marginTop: '1rem' }}>
           <label className="form-label">Split Method</label>
           <div className="type-toggle">
@@ -154,7 +150,6 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
           </div>
         </div>
 
-        {/* Split Rows */}
         {group && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
             {members.map((id) => {
@@ -169,14 +164,11 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
                       {amt > 0 ? formatCurrency(Math.round((amt / members.length) * 100) / 100) : 'Auto'}
                     </span>
                   ) : (
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                    <input type="number" step="0.01" min="0"
                       placeholder={splitMethod === 'amount' ? '0.00' : '0%'}
                       value={splitValues[id] || ''}
                       onChange={(e) => updateSplitValue(id, e.target.value)}
-                      style={{ width: 100, marginLeft: 'auto', padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                      style={{ width: 100, padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
                     />
                   )}
                 </div>
@@ -191,7 +183,7 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
           </p>
         )}
 
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+        <div className="modal-actions" style={{ marginTop: '1.5rem', justifyContent: 'flex-end' }}>
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn btn-primary" disabled={!isValid}>Save</button>
         </div>

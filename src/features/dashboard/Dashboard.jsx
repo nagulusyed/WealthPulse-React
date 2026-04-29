@@ -6,6 +6,7 @@ import { formatCurrency, formatMonthLabel, formatDate, getMonthKey } from '../..
 import { getGreeting } from '../../utils/helpers';
 import { CategoryDoughnut } from '../../components/charts/CategoryDoughnut';
 import { TrendBarChart } from '../../components/charts/TrendBarChart';
+import { useYTDSavings } from '../../hooks/useYTDSavings';
 import './Dashboard.css';
 
 export function Dashboard({ onAddTransaction }) {
@@ -20,6 +21,7 @@ export function Dashboard({ onAddTransaction }) {
   const groupExpenses = useStore((s) => s.groupExpenses);
   const people = useStore((s) => s.people);
   const navigate = useNavigate();
+  const ytdSavings = useYTDSavings();
 
   const isSettlement = (t) => t.isSettlement || (t.notes && t.notes.startsWith('Payment via'));
 
@@ -27,10 +29,10 @@ export function Dashboard({ onAddTransaction }) {
     const grossExpenseNoSet = transactions.filter((t) => t.type === 'expense' && !isSettlement(t));
     const totalGrossExpense = grossExpenseNoSet.reduce((s, t) => s + t.amount, 0);
     const receivedSettlements = transactions.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
-    
+
     if (totalGrossExpense === 0 || receivedSettlements === 0) return transactions;
     const ratio = receivedSettlements / totalGrossExpense;
-    
+
     return transactions.map((t) => {
       if (t.type === 'expense' && !isSettlement(t)) {
         return { ...t, amount: t.amount * (1 - ratio) };
@@ -43,10 +45,10 @@ export function Dashboard({ onAddTransaction }) {
     const grossExpenseNoSet = allTransactions.filter((t) => t.type === 'expense' && !isSettlement(t));
     const totalGrossExpense = grossExpenseNoSet.reduce((s, t) => s + t.amount, 0);
     const receivedSettlements = allTransactions.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
-    
+
     if (totalGrossExpense === 0 || receivedSettlements === 0) return allTransactions;
     const ratio = receivedSettlements / totalGrossExpense;
-    
+
     return allTransactions.map((t) => {
       if (t.type === 'expense' && !isSettlement(t)) {
         return { ...t, amount: t.amount * (1 - ratio) };
@@ -59,17 +61,17 @@ export function Dashboard({ onAddTransaction }) {
     const grossIncome = netTransactions.filter((t) => t.type === 'income' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
     const netExpenseNoSet = netTransactions.filter((t) => t.type === 'expense' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
     const sentSettlements = netTransactions.filter((t) => t.type === 'expense' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
-    
+
     const expenses = netExpenseNoSet + sentSettlements;
     const income = grossIncome;
     const balance = income - expenses;
     const savingsRate = income > 0 ? Math.round(((income - expenses) / income) * 100) : 0;
-    
+
     const incomeTxns = netTransactions.filter((t) => t.type === 'income' && !isSettlement(t));
     const expenseTxns = netTransactions.filter((t) => t.type === 'expense' || isSettlement(t));
     const incomeSources = new Set(incomeTxns.map((t) => t.category)).size;
     const expenseCategories = new Set(expenseTxns.map((t) => t.category)).size;
-    
+
     return { income, expenses, balance, savingsRate, incomeSources, expenseCategories };
   }, [netTransactions]);
 
@@ -78,15 +80,15 @@ export function Dashboard({ onAddTransaction }) {
     pm.setMonth(pm.getMonth() - 1);
     const key = getMonthKey(pm);
     const prevTxns = netAllTransactions.filter((t) => t.date.startsWith(key));
-    
+
     const prevGrossIncome = prevTxns.filter((t) => t.type === 'income' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
     const prevGrossExpenseNoSet = prevTxns.filter((t) => t.type === 'expense' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
     const prevReceivedSet = prevTxns.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
     const prevSentSet = prevTxns.filter((t) => t.type === 'expense' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
-    
+
     const prevExpenses = prevGrossExpenseNoSet - prevReceivedSet + prevSentSet;
     const prevIncome = prevGrossIncome;
-    
+
     return { income: prevIncome, expenses: prevExpenses, balance: prevIncome - prevExpenses, hasData: prevTxns.length > 0 };
   }, [selectedMonth, netAllTransactions]);
 
@@ -155,11 +157,11 @@ export function Dashboard({ onAddTransaction }) {
       {/* Month Nav */}
       <div className="month-nav">
         <button className="month-arrow" onClick={prevMonth}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
         <span className="month-label">{formatMonthLabel(selectedMonth)}</span>
         <button className="month-arrow" onClick={nextMonth}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
         </button>
       </div>
 
@@ -190,6 +192,13 @@ export function Dashboard({ onAddTransaction }) {
           <div className="card-label">Savings Rate</div>
           <div className={`card-amount ${blur}`}>{summary.savingsRate}%</div>
           <div className="card-sub">Target: 30%</div>
+        </div>
+        <div className="summary-card">
+          <div className="card-label">Yearly Savings (YTD)</div>
+          <div className={`card-amount ${blur}`} style={{ color: ytdSavings.savingsRate > 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+            {ytdSavings.savingsRate}%
+          </div>
+          <div className="card-sub">{formatCurrency(ytdSavings.savings)} saved in {ytdSavings.year}</div>
         </div>
       </div>
 
@@ -245,7 +254,7 @@ export function Dashboard({ onAddTransaction }) {
               {groupsData.slice(0, 3).map((g) => (
                 <div key={g.id} className="txn-item" onClick={() => navigate('/groups')}>
                   <div className="group-icon-sm">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
                   </div>
                   <div className="txn-details">
                     <div className="txn-desc">{g.name}</div>
