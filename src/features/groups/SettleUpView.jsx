@@ -50,14 +50,27 @@ export function SettleUpView() {
       const isYouPaying = settleData.from === 'self';
       const otherPerson = getPersonById(isYouPaying ? settleData.to : settleData.from);
       const group = getGroupById(settleData.groupId);
-      store.addTransaction({
-        type: 'expense',
-        description: `Settlement to ${otherPerson?.name || 'Unknown'} (${group?.name || 'Group'})`,
-        amount: settleData.amount,
-        category: 'other_exp',
-        date: new Date().toISOString().split('T')[0],
-        notes: `Payment via ${paymentMethod}`,
-      });
+      if (isYouPaying) {
+        // You are paying your debt — record as expense
+        store.addTransaction({
+          type: 'expense',
+          description: `Settlement paid to ${otherPerson?.name || 'Unknown'} (${group?.name || 'Group'})`,
+          amount: settleData.amount,
+          category: 'other_exp',
+          date: new Date().toISOString().split('T')[0],
+          notes: `Payment via ${paymentMethod}`,
+        });
+      } else {
+        // You received money — record as income to reduce net expenses
+        store.addTransaction({
+          type: 'income',
+          description: `Settlement received from ${otherPerson?.name || 'Unknown'} (${group?.name || 'Group'})`,
+          amount: settleData.amount,
+          category: 'other_inc',
+          date: new Date().toISOString().split('T')[0],
+          notes: `Received via ${paymentMethod}`,
+        });
+      }
     }
 
     setShowSettleModal(false);
@@ -151,12 +164,17 @@ export function SettleUpView() {
       <Modal isOpen={showSettleModal} onClose={() => setShowSettleModal(false)} title="Record Payment" className="modal-small">
         {settleData && (
           <form onSubmit={handleSettle}>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', fontSize: '0.875rem' }}>
               {settleData.from === 'self'
                 ? `You pay ${getPersonById(settleData.to)?.name || 'Unknown'} — ${formatCurrency(settleData.amount)}`
                 : `${getPersonById(settleData.from)?.name || 'Unknown'} pays you — ${formatCurrency(settleData.amount)}`
               }
             </p>
+            {settleData.from !== 'self' && (
+              <p style={{ fontSize: '0.78rem', color: 'var(--accent-green)', marginBottom: '0.75rem', background: 'rgba(46,204,113,0.08)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)' }}>
+                Receiving money — syncs as income to keep your savings rate accurate.
+              </p>
+            )}
 
             <div className="form-group">
               <label className="form-label">Payment Method</label>
@@ -170,10 +188,13 @@ export function SettleUpView() {
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500 }}>
                 <input type="checkbox" checked={syncPersonal} onChange={(e) => setSyncPersonal(e.target.checked)} style={{ width: 20, height: 20, accentColor: 'var(--accent-indigo)' }} />
-                <span style={{ color: 'var(--text-primary)' }}>Update in personal finance</span>
+                <span style={{ color: 'var(--text-primary)' }}>Sync with personal finance</span>
               </label>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.4rem', marginLeft: '2.5rem' }}>
-                This will add a transaction to your personal tracker
+                {settleData?.from === 'self'
+                  ? 'Records payment as an expense in your personal tracker'
+                  : 'Records received amount as income — updates savings rate'
+                }
               </p>
             </div>
 

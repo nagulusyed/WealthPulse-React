@@ -41,7 +41,7 @@ ul, ol { list-style: none; }
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
-    padding: 0rem 0.75rem 5rem;
+    padding: 0.875rem 0.75rem 5rem;
   }
 }
 

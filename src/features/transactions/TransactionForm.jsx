@@ -90,13 +90,13 @@ export function TransactionForm({ transaction, defaultType = 'expense', onClose 
             <input className="form-input" type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add a note..." maxLength={150} />
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {isEditing && (
-              <button type="button" className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)} style={{ flex: 0 }}>
+              <button type="button" className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>
                 Delete
               </button>
             )}
-            <div style={{ flex: 1 }} />
+            <div style={{ flex: 1, minWidth: '0.5rem' }} />
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary">{isEditing ? 'Save Changes' : 'Add Transaction'}</button>
           </div>

@@ -12,11 +12,14 @@ export function ReportsView() {
   const blur = privacyMode ? 'private-blur' : '';
 
   const report = useMemo(() => {
-    const expenses = transactions.filter((t) => t.type === 'expense');
-    const totalSpent = expenses.reduce((s, t) => s + t.amount, 0);
-    const totalIncome = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expenseTxns = transactions.filter((t) => t.type === 'expense');
+    const incomeTxns = transactions.filter((t) => t.type === 'income');
+    const totalSpent = expenseTxns.reduce((s, t) => s + t.amount, 0);
+    const totalIncome = incomeTxns.reduce((s, t) => s + t.amount, 0);
+    const netSavings = totalIncome - totalSpent;
+    const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0;
 
-    // Previous month
+    // Previous month comparison
     const pm = new Date(selectedMonth);
     pm.setMonth(pm.getMonth() - 1);
     const pmKey = getMonthKey(pm);
@@ -25,19 +28,19 @@ export function ReportsView() {
     const diff = totalSpent - prevSpent;
     const pct = prevSpent > 0 ? Math.round((diff / prevSpent) * 100) : 0;
 
-    // Category breakdown
+    // Category breakdown (expenses only)
     const catTotals = {};
-    expenses.forEach((t) => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
+    expenseTxns.forEach((t) => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
     const sorted = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).map(([catId, amount]) => {
       const cat = getCategory('expense', catId);
       return { ...cat, amount, pct: totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0 };
     });
 
-    // Top insights
     const topCat = sorted[0];
-    const avgDaily = totalSpent / new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
+    const daysInMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
+    const avgDaily = totalSpent / daysInMonth;
 
-    return { totalSpent, totalIncome, diff, pct, categories: sorted, topCat, avgDaily, prevSpent };
+    return { totalSpent, totalIncome, netSavings, savingsRate, diff, pct, categories: sorted, topCat, avgDaily, prevSpent };
   }, [transactions, selectedMonth, allTransactions]);
 
   return (
@@ -47,16 +50,27 @@ export function ReportsView() {
 
       {/* Summary */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-        <div className="card" style={{ flex: 1, minWidth: 140 }}>
+        <div className="card" style={{ flex: 1, minWidth: 130 }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Income</div>
+          <div className={blur} style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-green)', marginTop: '0.2rem' }}>{formatCurrency(report.totalIncome)}</div>
+        </div>
+        <div className="card" style={{ flex: 1, minWidth: 130 }}>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Spent</div>
-          <div className={blur} style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-red)', marginTop: '0.2rem' }}>{formatCurrency(report.totalSpent)}</div>
+          <div className={blur} style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent-red)', marginTop: '0.2rem' }}>{formatCurrency(report.totalSpent)}</div>
           <div style={{ fontSize: '0.72rem', marginTop: '0.3rem', color: report.diff > 0 ? 'var(--accent-red)' : 'var(--accent-green)' }}>
             {report.diff > 0 ? '↑' : '↓'} {Math.abs(report.pct)}% vs last month
           </div>
         </div>
-        <div className="card" style={{ flex: 1, minWidth: 140 }}>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Avg. Daily</div>
-          <div className={blur} style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: '0.2rem' }}>{formatCurrency(Math.round(report.avgDaily))}</div>
+        <div className="card" style={{ flex: 1, minWidth: 130 }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Net Savings</div>
+          <div className={blur} style={{ fontSize: '1.15rem', fontWeight: 700, color: report.netSavings >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', marginTop: '0.2rem' }}>{formatCurrency(Math.abs(report.netSavings))}</div>
+          <div style={{ fontSize: '0.72rem', marginTop: '0.3rem', color: 'var(--text-muted)' }}>
+            Savings rate: <strong style={{ color: report.savingsRate >= 30 ? 'var(--accent-green)' : report.savingsRate >= 0 ? 'var(--accent-yellow, #fbbf24)' : 'var(--accent-red)' }}>{report.savingsRate}%</strong>
+          </div>
+        </div>
+        <div className="card" style={{ flex: 1, minWidth: 130 }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Avg. Daily Spend</div>
+          <div className={blur} style={{ fontSize: '1.15rem', fontWeight: 700, marginTop: '0.2rem' }}>{formatCurrency(Math.round(report.avgDaily))}</div>
         </div>
       </div>
 

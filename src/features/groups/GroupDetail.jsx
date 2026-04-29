@@ -27,6 +27,8 @@ export function GroupDetail({ groupId, onBack }) {
   const [showDeleteExpenseConfirm, setShowDeleteExpenseConfirm] = useState(false);
   const [editGroupName, setEditGroupName] = useState('');
   const [editGroupMembers, setEditGroupMembers] = useState([]);
+  const [showThirdPartySettle, setShowThirdPartySettle] = useState(false);
+  const [thirdPartySettlement, setThirdPartySettlement] = useState(null);
 
   const expenses = useMemo(() =>
     groupExpenses
@@ -71,6 +73,20 @@ export function GroupDetail({ groupId, onBack }) {
       deleteGroupExpense(showExpenseDetail.id);
       setShowExpenseDetail(null);
     }
+  };
+
+  const openThirdPartySettle = (settlement) => {
+    setThirdPartySettlement(settlement);
+    setShowThirdPartySettle(true);
+  };
+
+  const handleThirdPartySettle = (e) => {
+    e.preventDefault();
+    if (!thirdPartySettlement) return;
+    // settleDebt records in group expenses only — no personal transaction added
+    settleDebt(thirdPartySettlement.from, thirdPartySettlement.to, thirdPartySettlement.groupId, thirdPartySettlement.amount);
+    setShowThirdPartySettle(false);
+    setThirdPartySettlement(null);
   };
 
   const otherPeople = people.filter((p) => p.id !== 'self');
@@ -194,6 +210,7 @@ export function GroupDetail({ groupId, onBack }) {
                 {settlements.map((t, i) => {
                   const fromP = getPersonById(t.from);
                   const toP = getPersonById(t.to);
+                  const involvesMe = t.from === 'self' || t.to === 'self';
                   return (
                     <div key={i} className="txn-item">
                       <div className="avatar-sm" style={{ background: fromP?.color || '#888' }}>{fromP?.initials}</div>
@@ -201,10 +218,15 @@ export function GroupDetail({ groupId, onBack }) {
                         <strong>{fromP?.name}</strong> pays <strong>{toP?.name}</strong>
                       </div>
                       <div className={blur} style={{ fontWeight: 600, marginRight: '0.5rem' }}>{formatCurrency(t.amount)}</div>
-                      {(t.from === 'self' || t.to === 'self') && (
+                      {involvesMe ? (
                         <button className="btn btn-success" style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem' }}
                           onClick={() => settleDebt(t.from, t.to, t.groupId, t.amount)}>
                           Settle
+                        </button>
+                      ) : (
+                        <button className="btn btn-ghost" style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem' }}
+                          onClick={() => openThirdPartySettle(t)}>
+                          Record
                         </button>
                       )}
                     </div>
@@ -294,6 +316,29 @@ export function GroupDetail({ groupId, onBack }) {
         message={`Delete "${group.name}" and all its expenses? This cannot be undone.`} />
       <ConfirmModal isOpen={showDeleteExpenseConfirm} onClose={() => setShowDeleteExpenseConfirm(false)} onConfirm={handleDeleteExpense}
         message="Delete this expense? This cannot be undone." />
+
+      {/* Third-Party Settlement Modal */}
+      <Modal isOpen={showThirdPartySettle} onClose={() => setShowThirdPartySettle(false)} title="Record Settlement" className="modal-small">
+        {thirdPartySettlement && (
+          <form onSubmit={handleThirdPartySettle}>
+            <div style={{ background: 'rgba(99,102,241,0.08)', borderRadius: 'var(--radius-sm)', padding: '0.85rem', marginBottom: '1.25rem' }}>
+              <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                {getPersonById(thirdPartySettlement.from)?.name} pays {getPersonById(thirdPartySettlement.to)?.name}
+              </p>
+              <p style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-indigo)' }}>
+                {formatCurrency(thirdPartySettlement.amount)}
+              </p>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--accent-green)', background: 'rgba(46,204,113,0.08)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem' }}>
+              This settlement is between other group members. It will update group balances only — your personal finance is not affected.
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setShowThirdPartySettle(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">Confirm Settlement</button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

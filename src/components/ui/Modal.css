@@ -181,4 +181,5 @@
     max-width: none;
   }
   .modal-body { padding: 1.25rem; }
+  .btn { padding: 0.55rem 1rem; font-size: 0.82rem; }
 }

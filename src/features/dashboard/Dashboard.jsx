@@ -26,11 +26,12 @@ export function Dashboard({ onAddTransaction }) {
     const expenseTxns = transactions.filter((t) => t.type === 'expense');
     const income = incomeTxns.reduce((s, t) => s + t.amount, 0);
     const expenses = expenseTxns.reduce((s, t) => s + t.amount, 0);
-    const balance = income - expenses;
-    const savingsRate = income > 0 ? Math.round(((income - expenses) / income) * 100) : 0;
+    // Net savings = income - expenses; settlements received add to income automatically
+    const netSavings = income - expenses;
+    const savingsRate = income > 0 ? Math.round((netSavings / income) * 100) : 0;
     const incomeSources = new Set(incomeTxns.map((t) => t.category)).size;
     const expenseCategories = new Set(expenseTxns.map((t) => t.category)).size;
-    return { income, expenses, balance, savingsRate, incomeSources, expenseCategories };
+    return { income, expenses, balance: netSavings, savingsRate, incomeSources, expenseCategories };
   }, [transactions]);
 
   const prevMonthData = useMemo(() => {

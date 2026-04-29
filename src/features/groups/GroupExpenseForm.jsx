@@ -91,15 +91,15 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
       updateGroupExpense(expense.id, data);
     } else {
       addGroupExpense(data);
-      // Sync to personal transactions if user paid
+      // Sync to personal transactions if user paid — use actual category
       if (paidBy === 'self') {
         addTransaction({
           type: 'expense',
           amount: amt,
-          category: 'other_exp',
+          category,
           date,
           description: `Group: ${group?.name} - ${description.trim()}`,
-          notes: 'Splitwise sync',
+          notes: 'Group expense sync',
         });
       }
     }
