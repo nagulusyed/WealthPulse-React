@@ -34,8 +34,10 @@ APK output: `android/app/build/outputs/apk/debug/app-debug.apk`
 - **Credit category fix** — category list validated against correct income/expense list; `other_inc` never shown in expense picker
 - **`window.testSms()`** — debug helper exposed globally; paste any SMS text in Chrome DevTools (`chrome://inspect`) to see parse result instantly
 
-### ⚡ Performance
-- **Code splitting** — Vite `manualChunks` splits bundle into `react-vendor`, `charts`, `store` chunks; no more 687 kB single chunk warning; faster load on device
+### ⚡ Background Tracking (New)
+- **Foreground Service** — Keeps the app process alive even when cleared from "Recent Apps," ensuring 100% reliability for SMS and notification capture.
+- **User Toggle** — Toggle "Background Tracking" in Settings to enable/disable the persistent notification and service.
+- **Auto-Restore** — Remembers your tracking preference across app restarts and phone reboots.
 
 ---
 
@@ -100,6 +102,7 @@ APK output: `android/app/build/outputs/apk/debug/app-debug.apk`
 - Privacy Mode, Theme (Dark / Light / Auto)
 - Export / Import JSON backup, Reset all data
 - Budget Alerts, Settlement Reminders toggles
+- Background Tracking toggle (⚡) — keeps app alive with foreground service
 
 ---
 
@@ -138,9 +141,11 @@ src/
 └── utils/ (formatters.js, helpers.js)
 
 android/app/src/main/java/com/wealthpulse/app/
-├── MainActivity.java              # Registers broadcast receivers; drains SMS queue on resume
-├── SmsReceiver.java               # Receives SMS_RECEIVED; queues to SharedPreferences; live broadcast
-└── NotificationListener.java     # Intercepts bank app notifications as fallback
+├── MainActivity.java              # Registers plugins; starts/stops ForegroundService
+├── SmsReceiver.java               # Receives SMS_RECEIVED; queues to SharedPreferences
+├── NotificationListener.java     # Intercepts bank app notifications as fallback
+├── ForegroundService.java         # Persistent background service with notification
+└── BackgroundServicePlugin.java   # Capacitor bridge for service control
 ```
 
 ## Android SMS Pipeline
@@ -214,6 +219,8 @@ Check `[WP-SMS]` log lines to trace the full pipeline from raw text to parsed re
 | `RECEIVE_SMS` | Receive bank SMS in background |
 | `READ_SMS` | Read SMS content |
 | `INTERNET` | Capacitor WebView |
+| `FOREGROUND_SERVICE` | Required to keep the app active in background |
+| `POST_NOTIFICATIONS` | Required to show the service notification (Android 13+) |
 | Notification Access (special) | Fallback — intercept bank app push notifications |
 
 On first launch the app requests SMS permission. If denied, it redirects to Notification Access settings as fallback. Both paths ultimately deliver transactions to the same JS pipeline.

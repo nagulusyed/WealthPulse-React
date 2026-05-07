@@ -26,10 +26,16 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        registerPlugin(BackgroundServicePlugin.class);
         super.onCreate(savedInstanceState);
 
         handleIntent(getIntent());
         requestSmsPermissionsIfNeeded();
+        
+        boolean bgEnabled = getSharedPreferences("wp_prefs", 0).getBoolean("bg_service_enabled", true);
+        if (bgEnabled) {
+            startForegroundService();
+        }
 
         // Live receiver — catches messages while app is in foreground
         liveReceiver = new BroadcastReceiver() {
@@ -79,11 +85,32 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    private void startForegroundService() {
+        Intent serviceIntent = new Intent(this, ForegroundService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+    }
+
     private void requestSmsPermissionsIfNeeded() {
-        if (hasSmsPermission()) return;
-        ActivityCompat.requestPermissions(this,
-            new String[]{ Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS },
-            SMS_PERMISSION_REQUEST);
+        boolean needsSms = !hasSmsPermission();
+        boolean needsNotif = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
+                             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED;
+
+        if (!needsSms && !needsNotif) return;
+
+        java.util.List<String> permissions = new java.util.ArrayList<>();
+        if (needsSms) {
+            permissions.add(Manifest.permission.RECEIVE_SMS);
+            permissions.add(Manifest.permission.READ_SMS);
+        }
+        if (needsNotif) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS);
+        }
+
+        ActivityCompat.requestPermissions(this, permissions.toArray(new String[0]), SMS_PERMISSION_REQUEST);
     }
 
     private boolean hasSmsPermission() {

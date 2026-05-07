@@ -39,6 +39,9 @@ function AppShell() {
   useSmsListener();
 
   useEffect(() => {
+    // Initialize native background service status
+    useStore.getState().initBgService();
+
     const handler = (e) => {
       if (fabOpen && !e.target.closest('.fab-center') && !e.target.closest('.fab-menu')) {
         setFabOpen(false);

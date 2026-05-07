@@ -230,6 +230,27 @@ const useStore = create((set, get) => ({
   smsEnabled: storage.getSmsEnabled(),
   setSmsEnabled: (enabled) => { storage.saveSmsEnabled(enabled); set({ smsEnabled: enabled }); },
 
+  // ── Background Service (Foreground Service) ──
+  bgServiceEnabled: true, // Initialized via initBgService
+  initBgService: async () => {
+    // Wait a bit for Capacitor bridge to be ready
+    await new Promise(r => setTimeout(r, 500));
+    const { nativeService } = await import('../services/nativeService');
+    const enabled = await nativeService.getBackgroundServiceStatus();
+    console.log('[Store] Initializing BG Service status:', enabled);
+    set({ bgServiceEnabled: enabled });
+  },
+  toggleBgService: async () => {
+    const { nativeService } = await import('../services/nativeService');
+    const next = !get().bgServiceEnabled;
+    if (next) {
+      await nativeService.startBackgroundService();
+    } else {
+      await nativeService.stopBackgroundService();
+    }
+    set({ bgServiceEnabled: next });
+  },
+
   // ── Pending SMS — identity-based dedup using stable txnId ──
   pendingSmsTransactions: storage.getPendingSms(),
 

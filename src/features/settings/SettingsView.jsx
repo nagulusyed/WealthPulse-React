@@ -15,6 +15,8 @@ export function SettingsView({ showToast }) {
   const togglePrivacy = useStore((s) => s.togglePrivacy);
   const smsEnabled = useStore((s) => s.smsEnabled);
   const setSmsEnabled = useStore((s) => s.setSmsEnabled);
+  const bgServiceEnabled = useStore((s) => s.bgServiceEnabled);
+  const toggleBgService = useStore((s) => s.toggleBgService);
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
@@ -268,6 +270,29 @@ export function SettingsView({ showToast }) {
                 onChange={(e) => {
                   setSmsEnabled(e.target.checked);
                   showToast?.(e.target.checked ? 'SMS Auto-capture enabled' : 'SMS Auto-capture disabled');
+                }}
+              />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+
+          <div className="settings-item">
+            <div className="settings-item-main">
+              <div className="settings-item-icon">⚡</div>
+              <div className="settings-item-text">
+                <div className="settings-item-title">Background Tracking</div>
+                <div className="settings-item-subtitle">
+                  Keep app alive for better SMS detection
+                </div>
+              </div>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={bgServiceEnabled}
+                onChange={async () => {
+                  await toggleBgService();
+                  showToast?.('Background tracking updated');
                 }}
               />
               <span className="toggle-slider" />
