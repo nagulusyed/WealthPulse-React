@@ -1,4 +1,4 @@
-# 💰 WealthPulse v3.1 — React + Vite Edition
+# 💰 WealthPulse v3.3 — React + Vite Edition
 
 A complete personal finance tracker with group expense splitting and **automatic SMS transaction capture**, built with **React 18 + Vite + Zustand + Capacitor Android**.
 
@@ -39,6 +39,12 @@ APK output: `android/app/build/outputs/apk/debug/app-debug.apk`
 - **User Toggle** — Toggle "Background Tracking" in Settings to enable/disable the persistent notification and service.
 - **Auto-Restore** — Remembers your tracking preference across app restarts and phone reboots.
 
+### ☝️ Biometric Authentication (v3.3)
+- **Native Security** — Login using Fingerprint or Face ID via the native Android BiometricPrompt API.
+- **Auto-Prompt** — App automatically requests biometrics on launch if enabled.
+- **Keypad Shortcut** — New fingerprint icon on the PIN screen keypad for manual trigger.
+- **Hardware Detection** — Toggle only appears in Settings if your device actually supports biometric hardware.
+
 ---
 
 ## Features
@@ -48,6 +54,7 @@ APK output: `android/app/build/outputs/apk/debug/app-debug.apk`
 - **Two-step PIN creation flow** — create PIN → confirm PIN, with strict mismatch reset
 - **Security question recovery** — set up during PIN creation to recover forgotten PIN
 - **Change PIN** from Settings with current PIN verification
+- **Biometric Login** (Fingerprint/Face ID) with auto-trigger and manual keypad access
 - **Privacy mode** — blur all amounts across the entire app
 
 ### 💵 Personal Finance Tracking
@@ -186,6 +193,7 @@ PendingSmsCard on Dashboard
 | Styling | CSS custom properties + CSS Modules |
 | Storage | localStorage (abstracted via storage.js) |
 | Mobile | Capacitor 8.x (Android) |
+| Biometrics | @capgo/capacitor-native-biometric |
 | SMS Capture | Android SmsReceiver + NotificationListenerService |
 | PIN Security | SHA-256 via WebCrypto API |
 

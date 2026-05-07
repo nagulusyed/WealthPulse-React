@@ -15,6 +15,7 @@ const KEYS = {
   pendingSms: 'wp_pending_sms',
   payeeMemory: 'wp_payee_memory',
   smsEnabled: 'wp_sms_enabled',
+  biometricsEnabled: 'wp_biometrics_enabled',
 };
 
 function getJSON(key, fallback) {
@@ -90,6 +91,10 @@ export const storage = {
   // ── SMS Auto-capture toggle ──
   getSmsEnabled: () => localStorage.getItem(KEYS.smsEnabled) !== '0', // default ON
   saveSmsEnabled: (enabled) => localStorage.setItem(KEYS.smsEnabled, enabled ? '1' : '0'),
+
+  // ── Biometrics ──
+  getBiometricsEnabled: () => localStorage.getItem(KEYS.biometricsEnabled) === '1', // default OFF
+  saveBiometricsEnabled: (enabled) => localStorage.setItem(KEYS.biometricsEnabled, enabled ? '1' : '0'),
 
   // Full reset
   resetAll: () => {

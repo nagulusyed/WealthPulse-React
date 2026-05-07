@@ -41,6 +41,8 @@ function AppShell() {
   useEffect(() => {
     // Initialize native background service status
     useStore.getState().initBgService();
+    // Check if device supports biometrics
+    useStore.getState().checkBiometricAvailability();
 
     const handler = (e) => {
       if (fabOpen && !e.target.closest('.fab-center') && !e.target.closest('.fab-menu')) {

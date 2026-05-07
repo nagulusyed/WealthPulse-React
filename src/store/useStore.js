@@ -1,8 +1,10 @@
 // ── Zustand Store — Central State Management ──
 
 import { create } from 'zustand';
-import { storage } from '../services/storage';
+import { hashPin, hashSecurityAnswer } from '../services/crypto';
+import { storage, migrateFromVanillaApp } from '../services/storage';
 import { DEFAULT_BUDGETS, AVATAR_COLORS } from '../services/categories';
+import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 import { generateId, getInitials } from '../utils/helpers';
 import { getMonthKey } from '../utils/formatters';
 
@@ -229,6 +231,46 @@ const useStore = create((set, get) => ({
   // ── SMS Auto-capture ──
   smsEnabled: storage.getSmsEnabled(),
   setSmsEnabled: (enabled) => { storage.saveSmsEnabled(enabled); set({ smsEnabled: enabled }); },
+
+  // ── Biometrics ──
+  biometricsEnabled: storage.getBiometricsEnabled(),
+  isBiometricAvailable: false,
+  setBiometricsEnabled: (enabled) => { storage.saveBiometricsEnabled(enabled); set({ biometricsEnabled: enabled }); },
+  checkBiometricAvailability: async () => {
+    try {
+      const result = await NativeBiometric.isAvailable();
+      console.log('[Store] Biometric availability:', result);
+      set({ isBiometricAvailable: !!result.isAvailable });
+    } catch (e) {
+      console.warn('Biometrics not supported or plugin missing', e);
+      set({ isBiometricAvailable: false });
+    }
+  },
+  verifyBiometrics: async () => {
+    try {
+      console.log('[Store] Triggering biometric verification...');
+      
+      const result = await NativeBiometric.isAvailable();
+      if (!result.isAvailable) {
+        console.warn('Biometrics not available');
+        return false;
+      }
+
+      await NativeBiometric.verifyIdentity({
+        reason: "Unlock WealthPulse",
+        title: "Biometric Login",
+        subtitle: "Use fingerprint or face to unlock",
+        description: "Please authenticate to continue",
+      });
+      
+      console.log('[Store] Biometric verification successful');
+      set({ isLocked: false });
+      return true;
+    } catch (e) {
+      console.error('Biometric verification failed', e);
+      return false;
+    }
+  },
 
   // ── Background Service (Foreground Service) ──
   bgServiceEnabled: true, // Initialized via initBgService

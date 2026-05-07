@@ -9,6 +9,8 @@ const PIN_LENGTH = 4;
 
 export function PinLockScreen() {
   const setLocked = useStore((s) => s.setLocked);
+  const biometricsEnabled = useStore((s) => s.biometricsEnabled);
+  const verifyBiometrics = useStore((s) => s.verifyBiometrics);
 
   const [pin, setPin] = useState('');
   const [mode, setMode] = useState(storage.hasPinSet() ? 'enter' : 'create');
@@ -23,6 +25,16 @@ export function PinLockScreen() {
 
   // Use ref for firstPin to avoid stale closure issues
   const firstPinRef = useRef(null);
+
+  // Auto-trigger biometrics if enabled
+  useEffect(() => {
+    if (mode === 'enter' && biometricsEnabled) {
+      const timer = setTimeout(() => {
+        verifyBiometrics();
+      }, 500); // Small delay for visual smooth transition
+      return () => clearTimeout(timer);
+    }
+  }, [mode, biometricsEnabled, verifyBiometrics]);
 
   const subtitle = {
     create: 'Create a 4-digit PIN',
@@ -213,7 +225,13 @@ export function PinLockScreen() {
               <span className="pin-key-num">{d}</span>
             </button>
           ))}
-          <div className="pin-key pin-key-ghost" />
+          {biometricsEnabled && mode === 'enter' ? (
+            <button className="pin-key pin-key-action" onClick={() => { console.log('[UI] Biometric button clicked'); verifyBiometrics(); }} aria-label="Biometric Login">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 10a2 2 0 0 0-2 2M12 14a2 2 0 0 1-2-2M7 8a7 7 0 0 1 10 10M3 12a10 10 0 0 1 14.9-8.4M17 12a5 5 0 0 1-5 5"/></svg>
+            </button>
+          ) : (
+            <div className="pin-key pin-key-ghost" />
+          )}
           <button className="pin-key" onClick={() => addDigit('0')}>
             <span className="pin-key-num">0</span>
           </button>

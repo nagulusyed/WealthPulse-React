@@ -17,6 +17,9 @@ export function SettingsView({ showToast }) {
   const setSmsEnabled = useStore((s) => s.setSmsEnabled);
   const bgServiceEnabled = useStore((s) => s.bgServiceEnabled);
   const toggleBgService = useStore((s) => s.toggleBgService);
+  const biometricsEnabled = useStore((s) => s.biometricsEnabled);
+  const setBiometricsEnabled = useStore((s) => s.setBiometricsEnabled);
+  const isBiometricAvailable = useStore((s) => s.isBiometricAvailable);
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
@@ -148,6 +151,28 @@ export function SettingsView({ showToast }) {
             </div>
             <span className="settings-chevron">›</span>
           </button>
+          {isBiometricAvailable && (
+            <div className="settings-item">
+              <div className="settings-item-main">
+                <div className="settings-item-icon">☝️</div>
+                <div className="settings-item-text">
+                  <div className="settings-item-title">Biometric Login</div>
+                  <div className="settings-item-subtitle">Use fingerprint or face</div>
+                </div>
+              </div>
+              <label className="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  checked={biometricsEnabled} 
+                  onChange={(e) => {
+                    setBiometricsEnabled(e.target.checked);
+                    showToast?.(e.target.checked ? 'Biometrics enabled' : 'Biometrics disabled');
+                  }} 
+                />
+                <span className="toggle-slider" />
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
