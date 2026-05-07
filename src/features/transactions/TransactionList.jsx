@@ -3,6 +3,7 @@ import useStore from '../../store/useStore';
 import { getCategory, CATEGORIES } from '../../services/categories';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { TransactionForm } from './TransactionForm';
+import { EmptyState } from '../../components/EmptyState';
 import './TransactionList.css';
 
 export function TransactionList() {
@@ -65,9 +66,11 @@ export function TransactionList() {
 
       {/* Transaction List */}
       {filtered.length === 0 ? (
-        <div className="empty-state">
-          <p>No transactions found</p>
-        </div>
+        <EmptyState 
+          icon={search ? '🔍' : '📭'} 
+          title={search ? 'No matches found' : 'No transactions'} 
+          text={search ? `We couldn't find anything for "${search}"` : 'Start by adding your first income or expense.'} 
+        />
       ) : (
         <div className="txn-list">
           {filtered.map((t, i) => {

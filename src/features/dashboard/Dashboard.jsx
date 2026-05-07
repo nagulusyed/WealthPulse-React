@@ -7,6 +7,7 @@ import { getGreeting } from '../../utils/helpers';
 import { CategoryDoughnut } from '../../components/charts/CategoryDoughnut';
 import { TrendBarChart } from '../../components/charts/TrendBarChart';
 import { useYTDSavings } from '../../hooks/useYTDSavings';
+import { EmptyState } from '../../components/EmptyState';
 import './Dashboard.css';
 
 export function Dashboard({ onAddTransaction }) {
@@ -155,7 +156,7 @@ export function Dashboard({ onAddTransaction }) {
   return (
     <div className="dashboard animate-in">
       {/* Month Nav */}
-      <div className="month-nav">
+      <div className="month-nav glass">
         <button className="month-arrow" onClick={prevMonth}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
@@ -169,7 +170,7 @@ export function Dashboard({ onAddTransaction }) {
 
       {/* Summary Cards */}
       <div className="summary-grid">
-        <div className="summary-card">
+        <div className="summary-card animate-bounce">
           <div className="card-label">Total Balance</div>
           <div className={`card-amount ${blur}`}>{formatCurrency(summary.balance)}</div>
           {prevMonthData.hasData && (
@@ -178,22 +179,22 @@ export function Dashboard({ onAddTransaction }) {
             </div>
           )}
         </div>
-        <div className="summary-card">
+        <div className="summary-card animate-bounce">
           <div className="card-label">Total Income</div>
           <div className={`card-amount income ${blur}`}>{formatCurrency(summary.income)}</div>
           <div className="card-sub">from {summary.incomeSources} source{summary.incomeSources !== 1 ? 's' : ''}</div>
         </div>
-        <div className="summary-card">
+        <div className="summary-card animate-bounce">
           <div className="card-label">Total Expenses</div>
           <div className={`card-amount expense ${blur}`}>{formatCurrency(summary.expenses)}</div>
           <div className="card-sub">in {summary.expenseCategories} categor{summary.expenseCategories !== 1 ? 'ies' : 'y'}</div>
         </div>
-        <div className="summary-card">
+        <div className="summary-card animate-bounce">
           <div className="card-label">Savings Rate</div>
           <div className={`card-amount ${blur}`}>{summary.savingsRate}%</div>
           <div className="card-sub">Target: 30%</div>
         </div>
-        <div className="summary-card">
+        <div className="summary-card animate-bounce">
           <div className="card-label">Yearly Savings (YTD)</div>
           <div className={`card-amount ${blur}`} style={{ color: ytdSavings.savingsRate > 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
             {ytdSavings.savingsRate}%
@@ -204,17 +205,17 @@ export function Dashboard({ onAddTransaction }) {
 
       {/* Middle Row */}
       <div className="dashboard-middle">
-        <div className="chart-card" style={{ flex: 2 }}>
+        <div className="chart-card animate-bounce" style={{ flex: 2 }}>
           <h3 className="card-title">Cash Flow Overview</h3>
           <TrendBarChart selectedMonth={selectedMonth} />
         </div>
-        <div className="chart-card" style={{ flex: 1 }}>
+        <div className="chart-card animate-bounce" style={{ flex: 1 }}>
           <h3 className="card-title">Spending by Category</h3>
           <CategoryDoughnut transactions={netTransactions} />
           <button className="view-link" onClick={() => navigate('/reports')}>View full report →</button>
         </div>
         <div className="dash-right-col">
-          <div className="chart-card">
+          <div className="chart-card animate-bounce">
             <h3 className="card-title">Quick Actions</h3>
             <div className="qa-grid">
               <button className="qa-btn" onClick={() => onAddTransaction?.('expense')}><span className="qa-icon expense">−</span><span>Expense</span></button>
@@ -224,7 +225,7 @@ export function Dashboard({ onAddTransaction }) {
             </div>
           </div>
           {insight && (
-            <div className="chart-card">
+            <div className="chart-card animate-bounce">
               <h3 className="card-title" style={{ color: 'var(--text-muted)' }}>Insight</h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{insight}</p>
               <button className="view-link" onClick={() => navigate('/reports')}>View details →</button>
@@ -248,7 +249,7 @@ export function Dashboard({ onAddTransaction }) {
             </span>
           </div>
           {groupsData.length === 0 ? (
-            <p className="empty-text">No groups yet</p>
+            <EmptyState icon="👥" title="No groups" text="Start a group to split bills with friends." />
           ) : (
             <div className="txn-list">
               {groupsData.slice(0, 3).map((g) => (
@@ -276,7 +277,7 @@ export function Dashboard({ onAddTransaction }) {
             <button className="view-link" onClick={() => navigate('/transactions')}>View all</button>
           </div>
           {recentTxns.length === 0 ? (
-            <p className="empty-text">No transactions yet</p>
+            <EmptyState icon="💸" title="No activity" text="Your recent transactions will appear here." />
           ) : (
             <div className="txn-list">
               {recentTxns.map((t) => {
@@ -305,11 +306,7 @@ export function Dashboard({ onAddTransaction }) {
             <button className="view-link" onClick={() => navigate('/settle-up')}>Settle up</button>
           </div>
           {mySettlements.length === 0 ? (
-            <div className="settled-empty">
-              <div className="settled-icon">✓</div>
-              <p className="settled-text">All settlements cleared!</p>
-              <p className="settled-sub">You have no pending debts or receivables.</p>
-            </div>
+            <EmptyState icon="✅" title="All settled" text="You have no pending debts or receivables." />
           ) : (
             <div className="txn-list">
               {mySettlements.slice(0, 4).map((t, i) => {
@@ -345,7 +342,7 @@ export function Dashboard({ onAddTransaction }) {
             <button className="view-link" onClick={() => navigate('/budgets')}>View all</button>
           </div>
           {budgetData.length === 0 ? (
-            <p className="empty-text">No budgets set</p>
+            <EmptyState icon="📊" title="No budgets" text="Set a budget to track your spending limits." />
           ) : (
             budgetData.slice(0, 4).map((cat) => (
               <div key={cat.id} className="budget-mini-item">

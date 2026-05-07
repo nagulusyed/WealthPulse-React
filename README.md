@@ -45,6 +45,12 @@ APK output: `android/app/build/outputs/apk/debug/app-debug.apk`
 - **Keypad Shortcut** — New fingerprint icon on the PIN screen keypad for manual trigger.
 - **Hardware Detection** — Toggle only appears in Settings if your device actually supports biometric hardware.
 
+### ✨ UI Refinement Phase (v3.3.0)
+- **Staggered Animations** — Summary cards and charts now have a smooth, staggered "bounce" entrance.
+- **Glassmorphism** — Modern frosted-glass effect on the month navigation bar.
+- **Improved Empty States** — Replaced plain text with custom `EmptyState` components featuring unique icons and helpful copy.
+- **UX Polish** — Hover lift effects on cards, refined layout spacing, and updated versioning in Settings.
+
 ---
 
 ## Features

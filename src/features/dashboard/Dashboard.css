@@ -6,7 +6,12 @@
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-full);
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
 }
 .month-arrow {
   color: var(--text-muted);
@@ -48,6 +53,12 @@
   border: var(--border-card);
   border-radius: var(--radius-lg);
   padding: 1.1rem 1.25rem;
+  transition: transform var(--transition-bounce), background var(--transition-normal);
+  cursor: default;
+}
+.summary-card:hover {
+  transform: translateY(-4px);
+  background: var(--bg-card-hover);
 }
 @media (max-width: 768px) {
   .summary-card {
@@ -114,6 +125,18 @@
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
 }
+/* Staggered Animations */
+.summary-card:nth-child(1) { animation-delay: 0.05s; }
+.summary-card:nth-child(2) { animation-delay: 0.1s; }
+.summary-card:nth-child(3) { animation-delay: 0.15s; }
+.summary-card:nth-child(4) { animation-delay: 0.2s; }
+.summary-card:nth-child(5) { animation-delay: 0.25s; }
+
+.chart-card:nth-child(1) { animation-delay: 0.3s; }
+.chart-card:nth-child(2) { animation-delay: 0.35s; }
+.dash-right-col .chart-card:nth-child(1) { animation-delay: 0.4s; }
+.dash-right-col .chart-card:nth-child(2) { animation-delay: 0.45s; }
+
 .qa-btn {
   display: flex;
   flex-direction: column;

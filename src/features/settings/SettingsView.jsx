@@ -128,7 +128,7 @@ export function SettingsView({ showToast }) {
       </div>
 
       {/* Account & Security */}
-      <div className="settings-card">
+      <div className="settings-card animate-bounce" style={{ animationDelay: '0.1s' }}>
         <h3 className="settings-card-title">🔐 Account & Security</h3>
         <div className="settings-list">
           <button className="settings-item" onClick={() => setShowChangePinModal(true)}>
@@ -177,7 +177,7 @@ export function SettingsView({ showToast }) {
       </div>
 
       {/* Appearance */}
-      <div className="settings-card">
+      <div className="settings-card animate-bounce" style={{ animationDelay: '0.2s' }}>
         <h3 className="settings-card-title">🎨 Appearance</h3>
         <div className="settings-list">
           <div className="settings-item">
@@ -211,7 +211,7 @@ export function SettingsView({ showToast }) {
       </div>
 
       {/* Backup & Data */}
-      <div className="settings-card">
+      <div className="settings-card animate-bounce" style={{ animationDelay: '0.3s' }}>
         <h3 className="settings-card-title">💾 Backup & Data</h3>
         <div className="settings-list">
           <button className="settings-item" onClick={handleExport}>
@@ -249,7 +249,7 @@ export function SettingsView({ showToast }) {
       </div>
 
       {/* Notifications */}
-      <div className="settings-card">
+      <div className="settings-card animate-bounce" style={{ animationDelay: '0.4s' }}>
         <h3 className="settings-card-title">🔔 Notifications</h3>
         <div className="settings-list">
           <div className="settings-item">
@@ -327,10 +327,10 @@ export function SettingsView({ showToast }) {
       </div>
 
       {/* About */}
-      <div className="settings-card">
+      <div className="settings-card animate-bounce" style={{ animationDelay: '0.5s' }}>
         <h3 className="settings-card-title">ℹ️ About</h3>
         <div className="settings-list">
-          <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Version</div><div className="settings-item-subtitle">v3.0.0 (React)</div></div></div></div>
+          <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Version</div><div className="settings-item-subtitle">v3.3.0 (React)</div></div></div></div>
           <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Storage Used</div><div className="settings-item-subtitle">{storageUsed}</div></div></div></div>
           <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Total Transactions</div><div className="settings-item-subtitle">{transactions.length}</div></div></div></div>
         </div>
