@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import useStore from './store/useStore';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { useToast } from './hooks/useToast';
+import { useSmsListener } from './hooks/useSmsListener';
 
 import { PinLockScreen } from './features/auth/PinLockScreen';
 import { Sidebar } from './components/layout/Sidebar';
@@ -19,6 +20,7 @@ import { SettleUpView } from './features/groups/SettleUpView';
 import { GroupExpenseForm } from './features/groups/GroupExpenseForm';
 import { ReportsView } from './features/reports/ReportsView';
 import { SettingsView } from './features/settings/SettingsView';
+import { NotificationsView } from './features/notifications/NotificationsView';
 
 function AppShell() {
   const isLocked = useStore((s) => s.isLocked);
@@ -32,6 +34,9 @@ function AppShell() {
   const [txnFormType, setTxnFormType] = useState('expense');
   const [txnFormData, setTxnFormData] = useState(null);
   const [showGroupExpenseForm, setShowGroupExpenseForm] = useState(false);
+
+  // ── SMS Listener (Android only, no-op on web/iOS) ──
+  useSmsListener();
 
   useEffect(() => {
     const handler = (e) => {
@@ -78,6 +83,7 @@ function AppShell() {
           <Route path="/groups" element={<GroupsView />} />
           <Route path="/settle-up" element={<SettleUpView />} />
           <Route path="/reports" element={<ReportsView />} />
+          <Route path="/notifications" element={<NotificationsView />} />
           <Route path="/settings" element={<SettingsView showToast={showToast} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -12,6 +12,9 @@ const KEYS = {
   groupExpenses: 'wp_group_expenses',
   privacyMode: 'wp_privacy_mode',
   migration: 'wp_migration_v3',
+  pendingSms: 'wp_pending_sms',
+  payeeMemory: 'wp_payee_memory',
+  smsEnabled: 'wp_sms_enabled',
 };
 
 function getJSON(key, fallback) {
@@ -75,6 +78,18 @@ export const storage = {
   // Migration flag
   isMigrated: () => localStorage.getItem(KEYS.migration) === 'done',
   markMigrated: () => localStorage.setItem(KEYS.migration, 'done'),
+
+  // ── Pending SMS Transactions ──
+  getPendingSms: () => getJSON(KEYS.pendingSms, []),
+  savePendingSms: (items) => setJSON(KEYS.pendingSms, items),
+
+  // ── Payee Memory (payee name → category id) ──
+  getPayeeMemory: () => getJSON(KEYS.payeeMemory, {}),
+  savePayeeMemory: (memory) => setJSON(KEYS.payeeMemory, memory),
+
+  // ── SMS Auto-capture toggle ──
+  getSmsEnabled: () => localStorage.getItem(KEYS.smsEnabled) !== '0', // default ON
+  saveSmsEnabled: (enabled) => localStorage.setItem(KEYS.smsEnabled, enabled ? '1' : '0'),
 
   // Full reset
   resetAll: () => {

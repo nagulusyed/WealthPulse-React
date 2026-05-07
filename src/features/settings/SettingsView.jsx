@@ -13,6 +13,8 @@ export function SettingsView({ showToast }) {
   const transactions = useStore((s) => s.transactions);
   const privacyMode = useStore((s) => s.privacyMode);
   const togglePrivacy = useStore((s) => s.togglePrivacy);
+  const smsEnabled = useStore((s) => s.smsEnabled);
+  const setSmsEnabled = useStore((s) => s.setSmsEnabled);
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
@@ -246,6 +248,28 @@ export function SettingsView({ showToast }) {
             </div>
             <label className="toggle-switch">
               <input type="checkbox" checked={settlementReminders} onChange={(e) => setSettlementReminders(e.target.checked)} />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+          <div className="settings-item">
+            <div className="settings-item-main">
+              <div className="settings-item-icon">📨</div>
+              <div className="settings-item-text">
+                <div className="settings-item-title">SMS Auto-capture</div>
+                <div className="settings-item-subtitle">
+                  {smsEnabled ? 'Auto-detecting HDFC transactions' : 'Off — enable to detect bank SMS'}
+                </div>
+              </div>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={smsEnabled}
+                onChange={(e) => {
+                  setSmsEnabled(e.target.checked);
+                  showToast?.(e.target.checked ? 'SMS Auto-capture enabled' : 'SMS Auto-capture disabled');
+                }}
+              />
               <span className="toggle-slider" />
             </label>
           </div>
