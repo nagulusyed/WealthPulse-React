@@ -4,6 +4,7 @@ import useStore from './store/useStore';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { useToast } from './hooks/useToast';
 import { useSmsListener } from './hooks/useSmsListener';
+import { useAlerts } from './hooks/useAlerts';
 
 import { PinLockScreen } from './features/auth/PinLockScreen';
 import { Sidebar } from './components/layout/Sidebar';
@@ -35,7 +36,9 @@ function AppShell() {
   const [txnFormData, setTxnFormData] = useState(null);
   const [showGroupExpenseForm, setShowGroupExpenseForm] = useState(false);
 
+  // ── Core hooks ──
   useSmsListener();
+  useAlerts(); // watches state → fires Android push notifications
 
   useEffect(() => {
     useStore.getState().initBgService();

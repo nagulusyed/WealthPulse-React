@@ -27,11 +27,15 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(BackgroundServicePlugin.class);
+        registerPlugin(AlertsPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // Create notification channels early so they are ready before any alert fires
+        WpNotificationManager.createChannels(this);
 
         handleIntent(getIntent());
         requestSmsPermissionsIfNeeded();
-        
+
         boolean bgEnabled = getSharedPreferences("wp_prefs", 0).getBoolean("bg_service_enabled", true);
         if (bgEnabled) {
             startForegroundService();
@@ -50,8 +54,8 @@ public class MainActivity extends BridgeActivity {
         };
 
         IntentFilter filter = new IntentFilter();
-        filter.addAction(SmsReceiver.PREFS_NAME);          // SMS live broadcast
-        filter.addAction(NotificationListener.NOTIF_ACTION); // Notification broadcast
+        filter.addAction(SmsReceiver.PREFS_NAME);
+        filter.addAction(NotificationListener.NOTIF_ACTION);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(liveReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
@@ -68,16 +72,14 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
 
-        // ── Deliver any queued messages that arrived while app was closed ──
         getBridge().getWebView().postDelayed(() -> {
             String[] queued = SmsReceiver.drainQueue(this);
             for (String msg : queued) {
                 Log.d(TAG, "Delivering queued SMS: " + msg.substring(0, Math.min(msg.length(), 60)));
                 dispatchToWebView(msg);
             }
-        }, 1200); // wait for WebView JS to be ready
+        }, 1200);
 
-        // Deliver share intent if pending
         if (pendingSharedText != null) {
             final String text = pendingSharedText;
             pendingSharedText = null;
@@ -96,8 +98,8 @@ public class MainActivity extends BridgeActivity {
 
     private void requestSmsPermissionsIfNeeded() {
         boolean needsSms = !hasSmsPermission();
-        boolean needsNotif = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && 
-                             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED;
+        boolean needsNotif = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED;
 
         if (!needsSms && !needsNotif) return;
 
@@ -115,7 +117,7 @@ public class MainActivity extends BridgeActivity {
 
     private boolean hasSmsPermission() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS)
-            == PackageManager.PERMISSION_GRANTED;
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     @Override
@@ -151,21 +153,21 @@ public class MainActivity extends BridgeActivity {
 
     public void dispatchToWebView(String text) {
         String escaped = text
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
-            .replaceAll("[\\x00-\\x1F&&[^\\n\\r\\t]]", "");
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
+                .replaceAll("[\\x00-\\x1F&&[^\\n\\r\\t]]", "");
 
         String js = "(function(){"
-            + "var b=\"" + escaped + "\";"
-            + "if(typeof window.wpReceiveSms==='function'){"
-            + "  window.wpReceiveSms(b);"
-            + "} else {"
-            + "  window.dispatchEvent(new CustomEvent('wp_sms_test',{detail:{body:b}}));"
-            + "}"
-            + "})();";
+                + "var b=\"" + escaped + "\";"
+                + "if(typeof window.wpReceiveSms==='function'){"
+                + "  window.wpReceiveSms(b);"
+                + "} else {"
+                + "  window.dispatchEvent(new CustomEvent('wp_sms_test',{detail:{body:b}}));"
+                + "}"
+                + "})();";
 
         runOnUiThread(() -> {
             try {

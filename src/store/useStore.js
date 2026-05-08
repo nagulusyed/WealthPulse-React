@@ -228,6 +228,13 @@ const useStore = create((set, get) => ({
     set({ transactions: [], budgets: DEFAULT_BUDGETS, people: [{ id: 'self', name: 'You', initials: 'You', color: '#8b5cf6', createdAt: new Date().toISOString() }], groups: [], groupExpenses: [], pendingSmsTransactions: [], payeeMemory: {}, privacyMode: false, isLocked: true });
   },
 
+  // ── Alerts (push notifications) ──
+  alertsEnabled: localStorage.getItem('wp_alerts_enabled') !== 'false',
+  setAlertsEnabled: (enabled) => {
+    localStorage.setItem('wp_alerts_enabled', String(enabled));
+    set({ alertsEnabled: enabled });
+  },
+
   // ── SMS Auto-capture ──
   smsEnabled: storage.getSmsEnabled(),
   setSmsEnabled: (enabled) => { storage.saveSmsEnabled(enabled); set({ smsEnabled: enabled }); },
@@ -239,63 +246,46 @@ const useStore = create((set, get) => ({
   checkBiometricAvailability: async () => {
     try {
       const result = await NativeBiometric.isAvailable();
-      console.log('[Store] Biometric availability:', result);
       set({ isBiometricAvailable: !!result.isAvailable });
     } catch (e) {
-      console.warn('Biometrics not supported or plugin missing', e);
       set({ isBiometricAvailable: false });
     }
   },
   verifyBiometrics: async () => {
     try {
-      console.log('[Store] Triggering biometric verification...');
-      
       const result = await NativeBiometric.isAvailable();
-      if (!result.isAvailable) {
-        console.warn('Biometrics not available');
-        return false;
-      }
-
+      if (!result.isAvailable) return false;
       await NativeBiometric.verifyIdentity({
-        reason: "Unlock WealthPulse",
-        title: "Biometric Login",
-        subtitle: "Use fingerprint or face to unlock",
-        description: "Please authenticate to continue",
+        reason: 'Unlock WealthPulse',
+        title: 'Biometric Login',
+        subtitle: 'Use fingerprint or face to unlock',
+        description: 'Please authenticate to continue',
       });
-      
-      console.log('[Store] Biometric verification successful');
       set({ isLocked: false });
       return true;
     } catch (e) {
-      console.error('Biometric verification failed', e);
       return false;
     }
   },
 
-  // ── Background Service (Foreground Service) ──
-  bgServiceEnabled: true, // Initialized via initBgService
+  // ── Background Service ──
+  bgServiceEnabled: true,
   initBgService: async () => {
-    // Wait a bit for Capacitor bridge to be ready
     await new Promise(r => setTimeout(r, 500));
     const { nativeService } = await import('../services/nativeService');
     const enabled = await nativeService.getBackgroundServiceStatus();
-    console.log('[Store] Initializing BG Service status:', enabled);
     set({ bgServiceEnabled: enabled });
   },
   toggleBgService: async () => {
     const { nativeService } = await import('../services/nativeService');
     const next = !get().bgServiceEnabled;
-    if (next) {
-      await nativeService.startBackgroundService();
-    } else {
-      await nativeService.stopBackgroundService();
-    }
+    if (next) { await nativeService.startBackgroundService(); }
+    else { await nativeService.stopBackgroundService(); }
     set({ bgServiceEnabled: next });
   },
 
-  // ── Pending SMS — identity-based dedup using stable txnId ──
+  // ── Pending SMS ──
   pendingSmsTransactions: storage.getPendingSms(),
-
   addPendingSms: (parsed) => {
     const existing = get().pendingSmsTransactions;
     if (existing.some((e) => e.id === parsed.id)) return false;
@@ -305,14 +295,11 @@ const useStore = create((set, get) => ({
     set({ pendingSmsTransactions: updated });
     return true;
   },
-
   dismissPendingSms: (id) => {
     const updated = get().pendingSmsTransactions.filter((s) => s.id !== id);
     storage.savePendingSms(updated);
     set({ pendingSmsTransactions: updated });
   },
-
-  // Accept debit SMS as expense
   acceptPendingSmsAsExpense: (id, categoryOverride) => {
     const item = get().pendingSmsTransactions.find((s) => s.id === id);
     if (!item) return;
@@ -321,8 +308,6 @@ const useStore = create((set, get) => ({
     get().addTransaction({ type: 'expense', amount: item.amount, category, date: item.date, description: item.payee, notes: 'via SMS' });
     get().dismissPendingSms(id);
   },
-
-  // Accept credit SMS as income
   acceptPendingSmsAsIncome: (id, categoryOverride) => {
     const item = get().pendingSmsTransactions.find((s) => s.id === id);
     if (!item) return;
