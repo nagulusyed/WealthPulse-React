@@ -18,7 +18,7 @@ import { BudgetView } from './features/budgets/BudgetView';
 import { GroupsView } from './features/groups/GroupsView';
 import { SettleUpView } from './features/groups/SettleUpView';
 import { GroupExpenseForm } from './features/groups/GroupExpenseForm';
-import { ReportsView } from './features/reports/ReportsView';
+import { InsightsView } from './features/insights/InsightsView';
 import { SettingsView } from './features/settings/SettingsView';
 import { NotificationsView } from './features/notifications/NotificationsView';
 
@@ -35,13 +35,10 @@ function AppShell() {
   const [txnFormData, setTxnFormData] = useState(null);
   const [showGroupExpenseForm, setShowGroupExpenseForm] = useState(false);
 
-  // ── SMS Listener (Android only, no-op on web/iOS) ──
   useSmsListener();
 
   useEffect(() => {
-    // Initialize native background service status
     useStore.getState().initBgService();
-    // Check if device supports biometrics
     useStore.getState().checkBiometricAvailability();
 
     const handler = (e) => {
@@ -87,7 +84,8 @@ function AppShell() {
           <Route path="/budgets" element={<BudgetView />} />
           <Route path="/groups" element={<GroupsView />} />
           <Route path="/settle-up" element={<SettleUpView />} />
-          <Route path="/reports" element={<ReportsView />} />
+          <Route path="/insights" element={<InsightsView />} />
+          <Route path="/reports" element={<Navigate to="/insights" replace />} />
           <Route path="/notifications" element={<NotificationsView />} />
           <Route path="/settings" element={<SettingsView showToast={showToast} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
