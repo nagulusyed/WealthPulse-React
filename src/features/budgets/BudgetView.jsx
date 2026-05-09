@@ -23,6 +23,8 @@ export function BudgetView() {
     });
   }, [transactions, budgets]);
 
+  const hasAnyBudget = budgetData.some((b) => b.limit > 0);
+
   const handleEditLimit = (cat) => {
     const newLimit = prompt(`Set monthly budget for ${cat.name} (₹):`, cat.limit || '');
     if (newLimit !== null && !isNaN(parseFloat(newLimit)) && parseFloat(newLimit) >= 0) {
@@ -46,23 +48,45 @@ export function BudgetView() {
         </button>
       </div>
 
+      {/* Nudge for fresh users */}
+      {!hasAnyBudget && (
+        <div className="budget-empty-nudge">
+          <div className="budget-nudge-icon">🎯</div>
+          <p className="budget-nudge-title">Set monthly spending limits</p>
+          <p className="budget-nudge-sub">
+            Tap any category below to set a limit. WealthPulse will alert you before you overspend.
+          </p>
+        </div>
+      )}
+
       <div className="budget-grid">
         {budgetData.map((cat) => (
-          <div key={cat.id} className="budget-card">
+          <div
+            key={cat.id}
+            className={`budget-card ${cat.limit === 0 ? 'budget-card-unset' : ''}`}
+            onClick={() => handleEditLimit(cat)}
+          >
             <div className="budget-header">
               <span className="budget-emoji">{cat.emoji}</span>
               <div>
                 <div className="budget-cat-name">{cat.name}</div>
-                <div className={`budget-amounts ${blur}`}>{formatCurrency(cat.spent)} of {formatCurrency(cat.limit)}</div>
+                {cat.limit > 0
+                  ? <div className={`budget-amounts ${blur}`}>{formatCurrency(cat.spent)} of {formatCurrency(cat.limit)}</div>
+                  : <div className="budget-unset-label">Tap to set limit</div>
+                }
               </div>
             </div>
-            <div className="budget-bar-bg">
-              <div className={`budget-bar-fill ${cat.status}`} style={{ width: `${cat.pct}%` }} />
-            </div>
-            <div className="budget-footer">
-              <span className={`budget-percent ${cat.status}`}>{cat.pct}% used</span>
-              <button className="budget-edit-btn" onClick={() => handleEditLimit(cat)}>Edit limit</button>
-            </div>
+            {cat.limit > 0 && (
+              <>
+                <div className="budget-bar-bg">
+                  <div className={`budget-bar-fill ${cat.status}`} style={{ width: `${cat.pct}%` }} />
+                </div>
+                <div className="budget-footer">
+                  <span className={`budget-percent ${cat.status}`}>{cat.pct}% used</span>
+                  <button className="budget-edit-btn" onClick={(e) => { e.stopPropagation(); handleEditLimit(cat); }}>Edit</button>
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>

@@ -5,10 +5,7 @@
   justify-content: space-between;
   margin-bottom: 1rem;
 }
-.view-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-}
+.view-title { font-size: 1.25rem; font-weight: 700; }
 .search-bar {
   display: flex;
   align-items: center;
@@ -21,41 +18,36 @@
   color: var(--text-muted);
 }
 .search-input {
-  flex: 1;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--text-primary);
-  font-size: 0.85rem;
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text-primary); font-size: 0.85rem;
 }
 .search-input::placeholder { color: var(--text-muted); }
 
 .filter-tabs {
-  display: flex;
-  gap: 0.3rem;
+  display: flex; gap: 0.3rem;
   background: var(--bg-input);
   border-radius: var(--radius-full);
-  padding: 3px;
-  margin-bottom: 1rem;
+  padding: 3px; margin-bottom: 1rem;
 }
 .filter-tab {
-  flex: 1;
-  padding: 0.45rem 0.75rem;
+  flex: 1; padding: 0.45rem 0.75rem;
   border-radius: var(--radius-full);
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-align: center;
-  color: var(--text-muted);
+  font-size: 0.8rem; font-weight: 600;
+  text-align: center; color: var(--text-muted);
   transition: all var(--transition-fast);
 }
-.filter-tab.active {
-  background: var(--accent-primary);
-  color: white;
-}
+.filter-tab.active { background: var(--accent-primary); color: white; }
 
 .empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--text-muted);
-  font-size: 0.85rem;
+  text-align: center; padding: 3rem 1rem;
+  color: var(--text-muted); font-size: 0.85rem;
 }
+
+/* Actionable empty state */
+.txn-empty-cta { text-align: center; padding: 1rem 0; }
+.txn-empty-actions {
+  display: flex; gap: 0.5rem;
+  justify-content: center; flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+.txn-empty-actions .btn { font-size: 0.78rem; padding: 0.45rem 1rem; }

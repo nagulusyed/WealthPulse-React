@@ -228,6 +228,14 @@ const useStore = create((set, get) => ({
     set({ transactions: [], budgets: DEFAULT_BUDGETS, people: [{ id: 'self', name: 'You', initials: 'You', color: '#8b5cf6', createdAt: new Date().toISOString() }], groups: [], groupExpenses: [], pendingSmsTransactions: [], payeeMemory: {}, privacyMode: false, isLocked: true });
   },
 
+  resetOnboarding: () => {
+    localStorage.removeItem('wp_checklist_dismissed');
+    localStorage.removeItem('wp_sms_prompt_shown');
+    localStorage.removeItem('wp_session_count');
+    localStorage.removeItem('wp_first_expense_added');
+    window.location.reload();
+  },
+
   // ── Alerts (push notifications) ──
   alertsEnabled: localStorage.getItem('wp_alerts_enabled') !== 'false',
   setAlertsEnabled: (enabled) => {

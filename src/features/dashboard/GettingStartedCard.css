@@ -1,0 +1,176 @@
+.gs-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.gs-header { margin-bottom: 1rem; }
+
+.gs-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.gs-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.gs-progress {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent-indigo);
+  background: rgba(99, 102, 241, 0.12);
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+.gs-bar-bg {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.gs-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-indigo), #818cf8);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.gs-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 0.75rem;
+}
+
+.gs-step {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.gs-step.pending:hover { background: rgba(255, 255, 255, 0.04); }
+.gs-step.done { opacity: 0.45; cursor: default; }
+
+.gs-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.gs-check.checked {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: #fff;
+}
+
+.gs-emoji { font-size: 1.1rem; flex-shrink: 0; }
+
+.gs-step-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.gs-step-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.gs-step-sub {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.gs-arrow { color: var(--text-muted); flex-shrink: 0; }
+
+.gs-dismiss {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 0.2rem 0;
+  transition: color var(--transition-fast);
+}
+.gs-dismiss:hover { color: var(--text-secondary); }
+
+/* Done State Celebration */
+.gs-done {
+  border: 1px solid rgba(34, 197, 94, 0.3) !important;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.02) 100%) !important;
+  padding: 1.5rem !important;
+}
+
+.gs-done-content {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.gs-done-icon {
+  font-size: 2.25rem;
+  animation: bounce 2s infinite;
+}
+
+.gs-done-text {
+  flex: 1;
+}
+
+.gs-done-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent-green);
+  margin-bottom: 0.15rem;
+}
+
+.gs-done-sub {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.gs-done-btn {
+  padding: 0.5rem 1rem !important;
+  font-size: 0.8rem !important;
+  white-space: nowrap;
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-8px); }
+  60% { transform: translateY(-4px); }
+}
+
+@media (max-width: 480px) {
+  .gs-done-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.75rem;
+  }
+  .gs-done-btn {
+    width: 100%;
+  }
+}

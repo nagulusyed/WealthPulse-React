@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useStore from '../../store/useStore';
 import { CATEGORIES, getCategory } from '../../services/categories';
@@ -8,7 +8,18 @@ import { CategoryDoughnut } from '../../components/charts/CategoryDoughnut';
 import { TrendBarChart } from '../../components/charts/TrendBarChart';
 import { useYTDSavings } from '../../hooks/useYTDSavings';
 import { EmptyState } from '../../components/EmptyState';
+import { GettingStartedCard } from './GettingStartedCard';
+import { SmsPromptSheet } from './SmsPromptSheet';
+import { storage } from '../../services/storage';
 import './Dashboard.css';
+
+const MIN_TXN_FOR_CHARTS = 3;
+const MIN_DAYS_FOR_TRENDS = 3;
+
+function hasEnoughDays(transactions) {
+  const dates = new Set(transactions.map((t) => t.date));
+  return dates.size >= MIN_DAYS_FOR_TRENDS;
+}
 
 export function Dashboard({ onAddTransaction }) {
   const transactions = useStore((s) => s.getMonthlyTransactions());
@@ -21,8 +32,26 @@ export function Dashboard({ onAddTransaction }) {
   const groups = useStore((s) => s.groups);
   const groupExpenses = useStore((s) => s.groupExpenses);
   const people = useStore((s) => s.people);
+  const smsEnabled = useStore((s) => s.smsEnabled);
+  const setSmsEnabled = useStore((s) => s.setSmsEnabled);
   const navigate = useNavigate();
   const ytdSavings = useYTDSavings();
+
+  // Session counter for SMS prompt trigger
+  useEffect(() => {
+    storage.incrementSessionCount();
+  }, []);
+
+  // Mark first expense for SMS prompt trigger
+  useEffect(() => {
+    if (!storage.isFirstExpenseAdded() && allTransactions.some((t) => t.type === 'expense')) {
+      storage.markFirstExpenseAdded();
+    }
+  }, [allTransactions]);
+
+  const isFreshUser = allTransactions.length === 0;
+  const hasEnoughForCharts = transactions.length >= MIN_TXN_FOR_CHARTS;
+  const hasEnoughForTrends = hasEnoughDays(allTransactions);
 
   const isSettlement = (t) => t.isSettlement || (t.notes && t.notes.startsWith('Payment via'));
 
@@ -30,14 +59,10 @@ export function Dashboard({ onAddTransaction }) {
     const grossExpenseNoSet = transactions.filter((t) => t.type === 'expense' && !isSettlement(t));
     const totalGrossExpense = grossExpenseNoSet.reduce((s, t) => s + t.amount, 0);
     const receivedSettlements = transactions.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
-
     if (totalGrossExpense === 0 || receivedSettlements === 0) return transactions;
     const ratio = receivedSettlements / totalGrossExpense;
-
     return transactions.map((t) => {
-      if (t.type === 'expense' && !isSettlement(t)) {
-        return { ...t, amount: t.amount * (1 - ratio) };
-      }
+      if (t.type === 'expense' && !isSettlement(t)) return { ...t, amount: t.amount * (1 - ratio) };
       return t;
     });
   }, [transactions]);
@@ -46,14 +71,10 @@ export function Dashboard({ onAddTransaction }) {
     const grossExpenseNoSet = allTransactions.filter((t) => t.type === 'expense' && !isSettlement(t));
     const totalGrossExpense = grossExpenseNoSet.reduce((s, t) => s + t.amount, 0);
     const receivedSettlements = allTransactions.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
-
     if (totalGrossExpense === 0 || receivedSettlements === 0) return allTransactions;
     const ratio = receivedSettlements / totalGrossExpense;
-
     return allTransactions.map((t) => {
-      if (t.type === 'expense' && !isSettlement(t)) {
-        return { ...t, amount: t.amount * (1 - ratio) };
-      }
+      if (t.type === 'expense' && !isSettlement(t)) return { ...t, amount: t.amount * (1 - ratio) };
       return t;
     });
   }, [allTransactions]);
@@ -62,17 +83,12 @@ export function Dashboard({ onAddTransaction }) {
     const grossIncome = netTransactions.filter((t) => t.type === 'income' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
     const netExpenseNoSet = netTransactions.filter((t) => t.type === 'expense' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
     const sentSettlements = netTransactions.filter((t) => t.type === 'expense' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
-
     const expenses = netExpenseNoSet + sentSettlements;
     const income = grossIncome;
     const balance = income - expenses;
     const savingsRate = income > 0 ? Math.round(((income - expenses) / income) * 100) : 0;
-
-    const incomeTxns = netTransactions.filter((t) => t.type === 'income' && !isSettlement(t));
-    const expenseTxns = netTransactions.filter((t) => t.type === 'expense' || isSettlement(t));
-    const incomeSources = new Set(incomeTxns.map((t) => t.category)).size;
-    const expenseCategories = new Set(expenseTxns.map((t) => t.category)).size;
-
+    const incomeSources = new Set(netTransactions.filter((t) => t.type === 'income' && !isSettlement(t)).map((t) => t.category)).size;
+    const expenseCategories = new Set(netTransactions.filter((t) => t.type === 'expense' || isSettlement(t)).map((t) => t.category)).size;
     return { income, expenses, balance, savingsRate, incomeSources, expenseCategories };
   }, [netTransactions]);
 
@@ -81,16 +97,16 @@ export function Dashboard({ onAddTransaction }) {
     pm.setMonth(pm.getMonth() - 1);
     const key = getMonthKey(pm);
     const prevTxns = netAllTransactions.filter((t) => t.date.startsWith(key));
-
     const prevGrossIncome = prevTxns.filter((t) => t.type === 'income' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
     const prevGrossExpenseNoSet = prevTxns.filter((t) => t.type === 'expense' && !isSettlement(t)).reduce((s, t) => s + t.amount, 0);
     const prevReceivedSet = prevTxns.filter((t) => t.type === 'income' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
     const prevSentSet = prevTxns.filter((t) => t.type === 'expense' && isSettlement(t)).reduce((s, t) => s + t.amount, 0);
-
-    const prevExpenses = prevGrossExpenseNoSet - prevReceivedSet + prevSentSet;
-    const prevIncome = prevGrossIncome;
-
-    return { income: prevIncome, expenses: prevExpenses, balance: prevIncome - prevExpenses, hasData: prevTxns.length > 0 };
+    return {
+      income: prevGrossIncome,
+      expenses: prevGrossExpenseNoSet - prevReceivedSet + prevSentSet,
+      balance: prevGrossIncome - (prevGrossExpenseNoSet - prevReceivedSet + prevSentSet),
+      hasData: prevTxns.length > 0,
+    };
   }, [selectedMonth, netAllTransactions]);
 
   const trend = summary.balance - prevMonthData.balance;
@@ -110,17 +126,11 @@ export function Dashboard({ onAddTransaction }) {
 
   const groupsData = useMemo(() => {
     const store = useStore.getState();
-    return groups.map((g) => {
-      const bal = store.getPersonBalanceInGroup('self', g.id);
-      return { ...g, balance: bal };
-    });
+    return groups.map((g) => ({ ...g, balance: store.getPersonBalanceInGroup('self', g.id) }));
   }, [groups, groupExpenses]);
 
-  const globalBalance = useMemo(() => {
-    return useStore.getState().getGlobalBalance('self');
-  }, [groups, groupExpenses]);
+  const globalBalance = useMemo(() => useStore.getState().getGlobalBalance('self'), [groups, groupExpenses]);
 
-  // Only show settlements that involve YOU (from === 'self' or to === 'self')
   const mySettlements = useMemo(() => {
     const all = useStore.getState().getAllSettlements();
     return all.filter((t) => t.from === 'self' || t.to === 'self');
@@ -128,7 +138,6 @@ export function Dashboard({ onAddTransaction }) {
 
   const insight = useMemo(() => {
     if (netTransactions.length === 0) return null;
-    const isSettlement = (t) => t.isSettlement || (t.notes && t.notes.startsWith('Payment via'));
     const expenses = netTransactions.filter((t) => t.type === 'expense' && !isSettlement(t));
     if (expenses.length === 0) return null;
     const catTotals = {};
@@ -155,6 +164,42 @@ export function Dashboard({ onAddTransaction }) {
 
   return (
     <div className="dashboard animate-in">
+
+      {/* SMS Prompt Sheet — delayed, shown once */}
+      <SmsPromptSheet
+        smsEnabled={smsEnabled}
+        onEnable={() => { setSmsEnabled(true); navigate('/settings'); }}
+        onDismiss={() => {}}
+      />
+
+      {/* Hero card — fresh users only */}
+      {isFreshUser && (
+        <div className="hero-card animate-in">
+          <div className="hero-icon">💳</div>
+          <h2 className="hero-title">Track your money automatically</h2>
+          <p className="hero-sub">
+            Log expenses manually or let WealthPulse read your bank SMS — no typing needed.
+          </p>
+          <div className="hero-actions">
+            <button className="btn btn-primary hero-btn" onClick={() => onAddTransaction?.('expense')}>
+              + Add Expense
+            </button>
+            <button className="btn btn-ghost hero-btn" onClick={() => navigate('/settings')}>
+              Enable SMS Detection
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Getting Started Checklist */}
+      <GettingStartedCard
+        transactions={allTransactions}
+        smsEnabled={smsEnabled}
+        budgets={budgets}
+        onAddExpense={() => onAddTransaction?.('expense')}
+        onAddIncome={() => onAddTransaction?.('income')}
+      />
+
       {/* Month Nav */}
       <div className="month-nav glass">
         <button className="month-arrow" onClick={prevMonth}>
@@ -203,53 +248,79 @@ export function Dashboard({ onAddTransaction }) {
         </div>
       </div>
 
-      {/* Middle Row */}
-      <div className="dashboard-middle">
-        <div className="chart-card animate-bounce" style={{ flex: 2 }}>
-          <h3 className="card-title">Cash Flow Overview</h3>
-          <TrendBarChart selectedMonth={selectedMonth} />
-        </div>
-        <div className="chart-card animate-bounce" style={{ flex: 1 }}>
-          <h3 className="card-title">Spending by Category</h3>
-          <CategoryDoughnut transactions={netTransactions} />
-          <button className="view-link" onClick={() => navigate('/reports')}>View full report →</button>
-        </div>
-        <div className="dash-right-col">
-          <div className="chart-card animate-bounce">
-            <h3 className="card-title">Quick Actions</h3>
-            <div className="qa-grid">
-              <button className="qa-btn" onClick={() => onAddTransaction?.('expense')}><span className="qa-icon expense">−</span><span>Expense</span></button>
-              <button className="qa-btn" onClick={() => onAddTransaction?.('income')}><span className="qa-icon income">+</span><span>Income</span></button>
-              <button className="qa-btn" onClick={() => navigate('/settle-up')}><span className="qa-icon settle">⇄</span><span>Settle Up</span></button>
-              <button className="qa-btn" onClick={() => navigate('/groups')}><span className="qa-icon split">✂</span><span>Split Bill</span></button>
-            </div>
+      {/* Charts — progressive reveal */}
+      {hasEnoughForCharts ? (
+        <div className="dashboard-middle">
+          <div className="chart-card animate-bounce" style={{ flex: 2 }}>
+            <h3 className="card-title">Cash Flow Overview</h3>
+            {hasEnoughForTrends
+              ? <TrendBarChart selectedMonth={selectedMonth} />
+              : (
+                <div className="reveal-nudge">
+                  <span>📊</span>
+                  <p>Add a few more days of transactions to see your trend chart.</p>
+                </div>
+              )
+            }
           </div>
-          {insight && (
+          <div className="chart-card animate-bounce" style={{ flex: 1 }}>
+            <h3 className="card-title">Spending by Category</h3>
+            <CategoryDoughnut transactions={netTransactions} />
+            <button className="view-link" onClick={() => navigate('/reports')}>View full report →</button>
+          </div>
+          <div className="dash-right-col">
             <div className="chart-card animate-bounce">
-              <h3 className="card-title" style={{ color: 'var(--text-muted)' }}>Insight</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{insight}</p>
-              <button className="view-link" onClick={() => navigate('/reports')}>View details →</button>
+              <h3 className="card-title">Quick Actions</h3>
+              <div className="qa-grid">
+                <button className="qa-btn" onClick={() => onAddTransaction?.('expense')}><span className="qa-icon expense">−</span><span>Expense</span></button>
+                <button className="qa-btn" onClick={() => onAddTransaction?.('income')}><span className="qa-icon income">+</span><span>Income</span></button>
+                <button className="qa-btn" onClick={() => navigate('/settle-up')}><span className="qa-icon settle">⇄</span><span>Settle Up</span></button>
+                <button className="qa-btn" onClick={() => navigate('/groups')}><span className="qa-icon split">✂</span><span>Split Bill</span></button>
+              </div>
             </div>
-          )}
+            {insight && (
+              <div className="chart-card animate-bounce">
+                <h3 className="card-title" style={{ color: 'var(--text-muted)' }}>Insight</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{insight}</p>
+                <button className="view-link" onClick={() => navigate('/reports')}>View details →</button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="chart-card animate-bounce" style={{ marginBottom: '1.25rem' }}>
+          <h3 className="card-title">Quick Actions</h3>
+          <div className="qa-grid">
+            <button className="qa-btn" onClick={() => onAddTransaction?.('expense')}><span className="qa-icon expense">−</span><span>Expense</span></button>
+            <button className="qa-btn" onClick={() => onAddTransaction?.('income')}><span className="qa-icon income">+</span><span>Income</span></button>
+            <button className="qa-btn" onClick={() => navigate('/settle-up')}><span className="qa-icon settle">⇄</span><span>Settle Up</span></button>
+            <button className="qa-btn" onClick={() => navigate('/groups')}><span className="qa-icon split">✂</span><span>Split Bill</span></button>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Row */}
       <div className="dashboard-bottom">
+
         {/* My Groups */}
         <div className="card">
           <div className="card-header-split">
             <h3 className="card-title">My Groups</h3>
             <button className="view-link" onClick={() => navigate('/groups')}>View all</button>
           </div>
-          <div className="dash-groups-balance">
-            <span className="card-sub">Net balance</span>
-            <span className={`card-amount ${blur}`} style={{ fontSize: '1.1rem', color: globalBalance > 0.01 ? 'var(--accent-green)' : globalBalance < -0.01 ? 'var(--accent-red)' : 'var(--text-primary)' }}>
-              {globalBalance < 0 ? '-' : ''}{formatCurrency(Math.abs(globalBalance))}
-            </span>
-          </div>
+          {groupsData.length > 0 && (
+            <div className="dash-groups-balance">
+              <span className="card-sub">Net balance</span>
+              <span className={`card-amount ${blur}`} style={{ fontSize: '1.1rem', color: globalBalance > 0.01 ? 'var(--accent-green)' : globalBalance < -0.01 ? 'var(--accent-red)' : 'var(--text-primary)' }}>
+                {globalBalance < 0 ? '-' : ''}{formatCurrency(Math.abs(globalBalance))}
+              </span>
+            </div>
+          )}
           {groupsData.length === 0 ? (
-            <EmptyState icon="👥" title="No groups" text="Start a group to split bills with friends." />
+            <div className="empty-state-action">
+              <EmptyState icon="👥" title="No groups yet" text="Split bills with friends, flat-mates, or trip buddies." />
+              <button className="btn btn-ghost esa-btn" onClick={() => navigate('/groups')}>+ Create Group</button>
+            </div>
           ) : (
             <div className="txn-list">
               {groupsData.slice(0, 3).map((g) => (
@@ -277,7 +348,10 @@ export function Dashboard({ onAddTransaction }) {
             <button className="view-link" onClick={() => navigate('/transactions')}>View all</button>
           </div>
           {recentTxns.length === 0 ? (
-            <EmptyState icon="💸" title="No activity" text="Your recent transactions will appear here." />
+            <div className="empty-state-action">
+              <EmptyState icon="💸" title="No transactions yet" text="Start tracking your spending." />
+              <button className="btn btn-primary esa-btn" onClick={() => onAddTransaction?.('expense')}>+ Add Expense</button>
+            </div>
           ) : (
             <div className="txn-list">
               {recentTxns.map((t) => {
@@ -299,7 +373,7 @@ export function Dashboard({ onAddTransaction }) {
           )}
         </div>
 
-        {/* Pending Settlements — only YOUR settlements */}
+        {/* Pending Settlements */}
         <div className="card">
           <div className="card-header-split">
             <h3 className="card-title">Pending Settlements</h3>
@@ -320,9 +394,7 @@ export function Dashboard({ onAddTransaction }) {
                       {(isYouOwe ? toP : fromP)?.initials || '?'}
                     </div>
                     <div className="txn-details">
-                      <div className="txn-desc">
-                        {isYouOwe ? `You owe ${toP?.name}` : `${fromP?.name} owes you`}
-                      </div>
+                      <div className="txn-desc">{isYouOwe ? `You owe ${toP?.name}` : `${fromP?.name} owes you`}</div>
                       <div className="txn-meta">{g?.name}</div>
                     </div>
                     <div className={`txn-amount ${isYouOwe ? 'expense' : 'income'} ${blur}`} style={{ fontSize: '0.8rem' }}>
@@ -342,7 +414,10 @@ export function Dashboard({ onAddTransaction }) {
             <button className="view-link" onClick={() => navigate('/budgets')}>View all</button>
           </div>
           {budgetData.length === 0 ? (
-            <EmptyState icon="📊" title="No budgets" text="Set a budget to track your spending limits." />
+            <div className="empty-state-action">
+              <EmptyState icon="🎯" title="No budgets set" text="Set monthly limits to avoid overspending." />
+              <button className="btn btn-ghost esa-btn" onClick={() => navigate('/budgets')}>Set a Budget</button>
+            </div>
           ) : (
             budgetData.slice(0, 4).map((cat) => (
               <div key={cat.id} className="budget-mini-item">

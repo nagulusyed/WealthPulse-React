@@ -16,6 +16,11 @@ const KEYS = {
   payeeMemory: 'wp_payee_memory',
   smsEnabled: 'wp_sms_enabled',
   biometricsEnabled: 'wp_biometrics_enabled',
+  // Onboarding / first-run
+  checklistDismissed: 'wp_checklist_dismissed',
+  smsPromptShown: 'wp_sms_prompt_shown',
+  sessionCount: 'wp_session_count',
+  firstExpenseAdded: 'wp_first_expense_added',
 };
 
 function getJSON(key, fallback) {
@@ -95,6 +100,23 @@ export const storage = {
   // ── Biometrics ──
   getBiometricsEnabled: () => localStorage.getItem(KEYS.biometricsEnabled) === '1', // default OFF
   saveBiometricsEnabled: (enabled) => localStorage.setItem(KEYS.biometricsEnabled, enabled ? '1' : '0'),
+
+  // ── Onboarding / First-run ──
+  isChecklistDismissed: () => localStorage.getItem(KEYS.checklistDismissed) === '1',
+  dismissChecklist: () => localStorage.setItem(KEYS.checklistDismissed, '1'),
+
+  isSmsPromptShown: () => localStorage.getItem(KEYS.smsPromptShown) === '1',
+  markSmsPromptShown: () => localStorage.setItem(KEYS.smsPromptShown, '1'),
+
+  getSessionCount: () => parseInt(localStorage.getItem(KEYS.sessionCount) || '0', 10),
+  incrementSessionCount: () => {
+    const count = parseInt(localStorage.getItem(KEYS.sessionCount) || '0', 10);
+    localStorage.setItem(KEYS.sessionCount, String(count + 1));
+    return count + 1;
+  },
+
+  isFirstExpenseAdded: () => localStorage.getItem(KEYS.firstExpenseAdded) === '1',
+  markFirstExpenseAdded: () => localStorage.setItem(KEYS.firstExpenseAdded, '1'),
 
   // Full reset
   resetAll: () => {

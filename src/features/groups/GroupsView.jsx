@@ -32,11 +32,9 @@ export function GroupsView() {
   }
 
   const otherPeople = people.filter((p) => p.id !== 'self');
-
   const getBalance = (personId) => useStore.getState().getGlobalBalance(personId);
   const getPersonBalance = (selfId, groupId) => useStore.getState().getPersonBalanceInGroup(selfId, groupId);
 
-  // --- Group handlers ---
   const handleCreateGroup = (e) => {
     e.preventDefault();
     if (!groupName.trim()) return;
@@ -50,7 +48,6 @@ export function GroupsView() {
     setSelectedMembers((prev) => prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]);
   };
 
-  // --- Person handlers ---
   const openPersonForm = (person = null) => {
     setEditingPerson(person);
     setPersonName(person?.name || '');
@@ -63,11 +60,8 @@ export function GroupsView() {
     if (!personName.trim()) return;
     const isDuplicate = people.some((p) => p.id !== editingPerson?.id && p.name.toLowerCase() === personName.trim().toLowerCase());
     if (isDuplicate) { setPersonError('Name already exists'); return; }
-    if (editingPerson) {
-      updatePerson(editingPerson.id, personName);
-    } else {
-      addPerson(personName);
-    }
+    if (editingPerson) updatePerson(editingPerson.id, personName);
+    else addPerson(personName);
     setShowPersonForm(false);
     setEditingPerson(null);
     setPersonName('');
@@ -92,7 +86,7 @@ export function GroupsView() {
         </div>
       </div>
 
-      {/* People Row — click to edit/delete */}
+      {/* People Row */}
       {otherPeople.length > 0 && (
         <div className="people-section">
           <div className="people-row">
@@ -114,10 +108,23 @@ export function GroupsView() {
         </div>
       )}
 
-      {/* Groups List */}
+      {/* Groups List or Empty State */}
       {groups.length === 0 ? (
-        <div className="empty-state">
-          <p>No groups yet. Create a group to start splitting expenses.</p>
+        <div className="groups-empty">
+          <div className="groups-empty-icon">🤝</div>
+          <p className="groups-empty-title">No groups yet</p>
+          <p className="groups-empty-sub">
+            Split bills for trips, flat expenses, dinners — and track who owes what automatically.
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={() => otherPeople.length === 0 ? openPersonForm() : setShowAddGroup(true)}
+          >
+            {otherPeople.length === 0 ? '+ Add a Person First' : '+ Create Group'}
+          </button>
+          {otherPeople.length === 0 && (
+            <p className="groups-empty-hint">You need to add at least one person before creating a group.</p>
+          )}
         </div>
       ) : (
         <div className="groups-list">

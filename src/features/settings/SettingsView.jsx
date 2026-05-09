@@ -326,8 +326,35 @@ export function SettingsView({ showToast }) {
         </div>
       </div>
 
-      {/* About */}
+      {/* Help & Support */}
       <div className="settings-card animate-bounce" style={{ animationDelay: '0.5s' }}>
+        <h3 className="settings-card-title">❓ Help & Support</h3>
+        <div className="settings-list">
+          <button className="settings-item" onClick={() => useStore.getState().resetOnboarding()}>
+            <div className="settings-item-main">
+              <div className="settings-item-icon">🚀</div>
+              <div className="settings-item-text">
+                <div className="settings-item-title">Restart Tutorial</div>
+                <div className="settings-item-subtitle">Show the checklist and tips again</div>
+              </div>
+            </div>
+            <span className="settings-chevron">›</span>
+          </button>
+          <div className="settings-item">
+            <div className="settings-item-main">
+              <div className="settings-item-icon">⭐</div>
+              <div className="settings-item-text">
+                <div className="settings-item-title">Rate WealthPulse</div>
+                <div className="settings-item-subtitle">Show some love on the store</div>
+              </div>
+            </div>
+            <span className="settings-chevron">›</span>
+          </div>
+        </div>
+      </div>
+
+      {/* About */}
+      <div className="settings-card animate-bounce" style={{ animationDelay: '0.6s' }}>
         <h3 className="settings-card-title">ℹ️ About</h3>
         <div className="settings-list">
           <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Version</div><div className="settings-item-subtitle">v3.3.0 (React)</div></div></div></div>
