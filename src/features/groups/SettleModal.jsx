@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import useStore from '../../store/useStore';
 import { formatCurrency } from '../../utils/formatters';
 import { Modal } from '../../components/ui/Modal';
 
 export function SettleModal({ isOpen, onClose, settleData }) {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [settleType, setSettleType] = useState('Full');
+  const [partialAmount, setPartialAmount] = useState('');
   const [syncPersonal, setSyncPersonal] = useState(false);
 
   const getPersonById = useStore((s) => s.getPersonById);
@@ -12,6 +14,16 @@ export function SettleModal({ isOpen, onClose, settleData }) {
   const groupExpenses = useStore((s) => s.groupExpenses);
   const settleDebt = useStore((s) => s.settleDebt);
   const addTransaction = useStore((s) => s.addTransaction);
+
+  // Reset state when modal opens with new data
+  useEffect(() => {
+    if (isOpen && settleData) {
+      setPaymentMethod('Cash');
+      setSettleType('Full');
+      setPartialAmount(settleData.amount.toString());
+      setSyncPersonal(false);
+    }
+  }, [isOpen, settleData]);
 
   /**
    * Find the correct category for this settlement by looking at the actual
@@ -57,8 +69,14 @@ export function SettleModal({ isOpen, onClose, settleData }) {
   const handleSettle = (e) => {
     e.preventDefault();
 
+    const finalAmount = settleType === 'Full' ? settleData.amount : parseFloat(partialAmount);
+    
+    if (isNaN(finalAmount) || finalAmount <= 0) {
+      return;
+    }
+
     // Record settlement in group balances
-    settleDebt(settleData.from, settleData.to, settleData.groupId, settleData.amount);
+    settleDebt(settleData.from, settleData.to, settleData.groupId, finalAmount);
 
     // Sync to personal finance only if YOU are involved and opted in
     if (isYouInvolved && syncPersonal) {
@@ -69,7 +87,7 @@ export function SettleModal({ isOpen, onClose, settleData }) {
         addTransaction({
           type: 'expense',
           description: `Payment - ${paymentMethod} to ${otherPerson?.name}`,
-          amount: settleData.amount,
+          amount: finalAmount,
           category: settleCategory,
           date: new Date().toISOString().split('T')[0],
           notes: `Settlement to ${otherPerson?.name} (${group?.name})`,
@@ -81,7 +99,7 @@ export function SettleModal({ isOpen, onClose, settleData }) {
         addTransaction({
           type: 'income',
           description: `Payment - ${paymentMethod} from ${otherPerson?.name}`,
-          amount: settleData.amount,
+          amount: finalAmount,
           category: 'other_inc',
           date: new Date().toISOString().split('T')[0],
           notes: `Settlement from ${otherPerson?.name} (${group?.name})`,
@@ -122,6 +140,37 @@ export function SettleModal({ isOpen, onClose, settleData }) {
           </div>
         </div>
 
+        <div className="form-group">
+          <label className="form-label">Settlement Type</label>
+          <div className="type-toggle">
+            {['Full', 'Partial'].map((t) => (
+              <button key={t} type="button" className={`type-btn ${settleType === t ? 'active' : ''}`} onClick={() => setSettleType(t)}>{t}</button>
+            ))}
+          </div>
+        </div>
+
+        {settleType === 'Partial' && (
+          <div className="form-group animate-in">
+            <label className="form-label">Amount Paid</label>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.9rem', color: 'var(--text-muted)' }}>₹</span>
+              <input
+                type="number"
+                className="form-input"
+                style={{ paddingLeft: '2rem' }}
+                value={partialAmount}
+                onChange={(e) => setPartialAmount(e.target.value)}
+                placeholder="0.00"
+                min="0.01"
+                max={settleData.amount}
+                step="0.01"
+                required
+                autoFocus
+              />
+            </div>
+          </div>
+        )}
+
         {isYouInvolved && (
           <div className="form-group">
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500 }}>
@@ -146,3 +195,4 @@ export function SettleModal({ isOpen, onClose, settleData }) {
     </Modal>
   );
 }
+

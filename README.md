@@ -1,4 +1,4 @@
-# 💰 WealthPulse v3.4 — React + Vite Edition
+# 💰 WealthPulse v3.5 — React + Vite Edition
 
 A complete personal finance tracker with group expense splitting, **automatic SMS transaction capture**, and **Smart Insights engine**, built with **React 18 + Vite + Zustand + Capacitor Android**.
 
@@ -18,6 +18,16 @@ npm run build && npx cap sync android && cd android && .\gradlew.bat assembleDeb
 ```
 
 APK output: `android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
+## What's New in v3.5
+
+### 💸 Partial Settlement (new)
+- **Flexible Payments** — Record partial payments for group debts instead of just full amounts.
+- **Auto-Calculated Balance** — The remaining debt is automatically recalculated and updated in the group balances.
+- **Personal Sync** — Optionally sync only the paid partial amount to your personal expense/income history.
+- **Smart UI** — Added a "Full / Partial" toggle in the settlement modal with a focus-ready numeric amount input.
 
 ---
 
@@ -128,9 +138,10 @@ Reports and Insights have been merged into a single **Reports & Insights** page 
 - Simplified settlement algorithm (minimizes transactions)
 
 ### 💸 Settlements
-- Global Settle Up page across all groups
-- Record payment with optional personal finance sync
-- Third-party settlement recording
+- **Global Settle Up** — View all debts and receivables across all groups in one place.
+- **Partial Payments** — Flexible settlement support (Full or Partial amounts).
+- **Personal Sync** — Record settlements as personal transactions with category matching.
+- **Third-Party Support** — Record payments between other group members to keep balances correct.
 
 ### 🧠 Reports & Insights (merged)
 - **Monthly** — Spent, income, savings rate, avg daily, category breakdown, MoM comparison
