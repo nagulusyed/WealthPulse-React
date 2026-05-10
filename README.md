@@ -21,7 +21,18 @@ APK output: `android/app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 
+## What's New in v3.6
+
+### 🛠️ Performance & Stabilization
+- **Reactive State Management** — Refactored state access from `useStore.getState()` to granular Zustand selectors with `shallow` equality, significantly reducing unnecessary component re-renders.
+- **Hook Integrity** — Audit and correction of `useEffect` dependency arrays across the codebase to prevent stale closures and infinite render loops.
+- **Improved SMS UX** — Migrated the pending SMS notification badge from the mobile bottom navigation to the global header for better visibility across all pages.
+- **Clean Architecture** — Standardized security protocols for data resets and authentication state handling.
+
+---
+
 ## What's New in v3.5
+
 
 ### 💸 Partial Settlement (new)
 - **Flexible Payments** — Record partial payments for group debts instead of just full amounts.

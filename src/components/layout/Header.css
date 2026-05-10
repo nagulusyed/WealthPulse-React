@@ -37,6 +37,38 @@
   font-size: 1rem;
   white-space: nowrap;
 }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+.alerts-btn {
+  position: relative;
+  color: var(--text-secondary);
+  padding: 0.35rem;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.alerts-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
 .privacy-btn {
   color: var(--text-secondary);
   padding: 0.35rem;
