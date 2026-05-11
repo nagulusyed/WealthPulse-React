@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useStore from '../../store/useStore';
 import { formatCurrency } from '../../utils/formatters';
 import { Modal, ConfirmModal } from '../../components/ui/Modal';
 import { GroupDetail } from './GroupDetail';
+import { searchContacts, requestContactsPermission, getUpiAppLabel } from '../../services/contactsService';
 import './GroupsView.css';
+import './PeopleView.css'; // Reuse PeopleView styles for the search results
 
 export function GroupsView() {
   const groups = useStore((s) => s.groups);
@@ -22,10 +24,32 @@ export function GroupsView() {
   const [groupName, setGroupName] = useState('');
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [personName, setPersonName] = useState('');
+  const [personPhone, setPersonPhone] = useState('');
+  const [personUpiId, setPersonUpiId] = useState('');
+  const [personContactId, setPersonContactId] = useState(null);
+  const [mode, setMode] = useState('manual'); // 'manual' | 'contacts'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [personError, setPersonError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const blur = privacyMode ? 'private-blur' : '';
+
+  // Contact search effect
+  useEffect(() => {
+    if (mode === 'contacts' && searchQuery.length >= 2) {
+      const timer = setTimeout(async () => {
+        setIsSearching(true);
+        const contacts = await searchContacts(searchQuery);
+        setSearchResults(contacts);
+        setIsSearching(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery, mode]);
 
   if (selectedGroupId) {
     return <GroupDetail groupId={selectedGroupId} onBack={() => setSelectedGroupId(null)} />;
@@ -53,9 +77,34 @@ export function GroupsView() {
   // --- Person handlers ---
   const openPersonForm = (person = null) => {
     setEditingPerson(person);
+    setMode('manual');
     setPersonName(person?.name || '');
+    setPersonPhone(person?.phone || '');
+    setPersonUpiId(person?.upiId || '');
+    setPersonContactId(person?.contactId || null);
     setPersonError('');
     setShowPersonForm(true);
+  };
+
+  const selectContact = (contact) => {
+    setPersonName(contact.name);
+    setPersonPhone(contact.phone || '');
+    setPersonUpiId(contact.upiId || '');
+    setPersonContactId(contact.id);
+    setMode('manual');
+    if (editingPerson) {
+      setEditingPerson({ ...editingPerson, avatar: contact.avatar });
+    }
+  };
+
+  const handleContactsMode = async () => {
+    const granted = await requestContactsPermission();
+    if (granted) {
+      setMode('contacts');
+      setSearchQuery('');
+    } else {
+      setPersonError('Permission denied');
+    }
   };
 
   const handleSavePerson = (e) => {
@@ -63,14 +112,26 @@ export function GroupsView() {
     if (!personName.trim()) return;
     const isDuplicate = people.some((p) => p.id !== editingPerson?.id && p.name.toLowerCase() === personName.trim().toLowerCase());
     if (isDuplicate) { setPersonError('Name already exists'); return; }
+
+    const personData = {
+      name: personName.trim(),
+      phone: personPhone.trim(),
+      upiId: personUpiId.trim(),
+      contactId: personContactId,
+      avatar: editingPerson?.avatar || null
+    };
+
     if (editingPerson) {
-      updatePerson(editingPerson.id, personName);
+      updatePerson(editingPerson.id, personData);
     } else {
-      addPerson(personName);
+      addPerson(personData);
     }
     setShowPersonForm(false);
     setEditingPerson(null);
     setPersonName('');
+    setPersonPhone('');
+    setPersonUpiId('');
+    setPersonContactId(null);
   };
 
   const handleDeletePerson = () => {
@@ -100,9 +161,15 @@ export function GroupsView() {
               const bal = getBalance(p.id);
               return (
                 <div key={p.id} className="avatar-chip clickable" onClick={() => openPersonForm(p)}>
-                  <div className="avatar-sm" style={{ background: p.color }}>{p.initials}</div>
+                  {p.avatar ? (
+                    <img src={p.avatar} className="avatar-sm" alt={p.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                  ) : null}
+                  <div className="avatar-sm" style={{ background: p.color, display: p.avatar ? 'none' : 'flex' }}>{p.initials}</div>
                   <div className="chip-info">
-                    <span className="chip-name">{p.name}</span>
+                    <span className="chip-name">
+                      {p.name}
+                      {p.upiId && <span title="UPI Linked" style={{ marginLeft: '4px', fontSize: '0.7rem', opacity: 0.7 }}>💳</span>}
+                    </span>
                     <span className={`chip-balance ${bal > 0.01 ? 'positive' : bal < -0.01 ? 'negative' : ''} ${blur}`}>
                       {bal > 0.01 ? `+${formatCurrency(bal)}` : bal < -0.01 ? `-${formatCurrency(Math.abs(bal))}` : 'Settled'}
                     </span>
@@ -157,7 +224,10 @@ export function GroupsView() {
                 {otherPeople.map((p) => (
                   <label key={p.id} className="member-checkbox">
                     <input type="checkbox" checked={selectedMembers.includes(p.id)} onChange={() => toggleMember(p.id)} />
-                    <div className="avatar-sm" style={{ background: p.color }}>{p.initials}</div>
+                    {p.avatar ? (
+                      <img src={p.avatar} className="avatar-sm" alt={p.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                    ) : null}
+                    <div className="avatar-sm" style={{ background: p.color, display: p.avatar ? 'none' : 'flex' }}>{p.initials}</div>
                     <span>{p.name}</span>
                   </label>
                 ))}
@@ -172,35 +242,102 @@ export function GroupsView() {
       </Modal>
 
       {/* Add / Edit Person Modal */}
-      <Modal isOpen={showPersonForm} onClose={() => { setShowPersonForm(false); setEditingPerson(null); }} title={editingPerson ? 'Edit Person' : 'Add Person'}>
-        <form onSubmit={handleSavePerson}>
-          <div className="form-group">
-            <label className="form-label">Name</label>
-            <input className="form-input" value={personName} onChange={(e) => { setPersonName(e.target.value); setPersonError(''); }} placeholder="e.g. Rahul" required autoFocus maxLength={40} />
-            {personError && <p style={{ color: 'var(--accent-error)', fontSize: '0.8rem', marginTop: '0.3rem' }}>{personError}</p>}
-          </div>
-          {editingPerson && (
-            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', marginBottom: '1rem' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Global Balance</div>
-              <div className={blur} style={{ fontSize: '1rem', fontWeight: 600 }}>
-                {(() => {
-                  const bal = getBalance(editingPerson.id);
-                  return bal > 0.01 ? <span style={{ color: 'var(--accent-green)' }}>Gets {formatCurrency(bal)}</span>
-                    : bal < -0.01 ? <span style={{ color: 'var(--accent-red)' }}>Owes {formatCurrency(Math.abs(bal))}</span>
-                    : <span style={{ color: 'var(--text-muted)' }}>Settled</span>;
-                })()}
-              </div>
+      <Modal 
+        isOpen={showPersonForm} 
+        onClose={() => { setShowPersonForm(false); setEditingPerson(null); }} 
+        title={editingPerson ? 'Edit Person' : 'Add Person'}
+        className="modal-small"
+      >
+        <div className="mode-toggle">
+          <button 
+            type="button"
+            className={`mode-btn ${mode === 'manual' ? 'active' : ''}`}
+            onClick={() => setMode('manual')}
+          >
+            Manual
+          </button>
+          <button 
+            type="button"
+            className={`mode-btn ${mode === 'contacts' ? 'active' : ''}`}
+            onClick={handleContactsMode}
+          >
+            From Contacts
+          </button>
+        </div>
+
+        {mode === 'contacts' ? (
+          <div className="contact-search-container">
+            <input 
+              className="form-input search-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search contacts by name..."
+              autoFocus
+            />
+            <div className="search-results" style={{ maxHeight: '250px' }}>
+              {isSearching ? (
+                <p className="search-status">Searching...</p>
+              ) : searchQuery.length < 2 ? (
+                <p className="search-status">Type at least 2 characters</p>
+              ) : searchResults.length === 0 ? (
+                <p className="search-status">No contacts found</p>
+              ) : (
+                searchResults.map(c => (
+                  <div key={c.id} className="search-item" onClick={() => selectContact(c)}>
+                    {c.avatar ? (
+                      <img src={c.avatar} className="avatar-xs" alt={c.name} />
+                    ) : (
+                      <div className="avatar-xs">{c.initials}</div>
+                    )}
+                    <div className="search-item-info">
+                      <div className="search-item-name">{c.name}</div>
+                      <div className="search-item-meta">
+                        {c.phone && <span>{c.phone}</span>}
+                        {c.upiId && <span className="upi-found">✅ {getUpiAppLabel(c.upiApp)} linked</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          )}
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-            {editingPerson && (
-              <button type="button" className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>Delete</button>
-            )}
-            <div style={{ flex: 1 }} />
-            <button type="button" className="btn btn-ghost" onClick={() => { setShowPersonForm(false); setEditingPerson(null); }}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Save</button>
           </div>
-        </form>
+        ) : (
+          <form onSubmit={handleSavePerson}>
+            <div className="form-group">
+              <label className="form-label">Name</label>
+              <input className="form-input" value={personName} onChange={(e) => { setPersonName(e.target.value); setPersonError(''); }} placeholder="e.g. Rahul" required autoFocus maxLength={40} />
+              {personError && <p style={{ color: 'var(--accent-error)', fontSize: '0.8rem', marginTop: '0.3rem' }}>{personError}</p>}
+            </div>
+            <div className="form-group">
+              <label className="form-label">Phone (Optional)</label>
+              <input className="form-input" value={personPhone} onChange={(e) => setPersonPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">UPI ID (Optional)</label>
+              <input className="form-input" value={personUpiId} onChange={(e) => setPersonUpiId(e.target.value)} placeholder="e.g. name@upi" />
+            </div>
+
+            {editingPerson && !editingPerson.contactId && (
+              <button 
+                type="button" 
+                className="btn btn-ghost" 
+                style={{ width: '100%', marginBottom: '1rem', border: '1px dashed var(--border-color)' }}
+                onClick={handleContactsMode}
+              >
+                🔗 Link to Contact
+              </button>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+              {editingPerson && (
+                <button type="button" className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>Delete</button>
+              )}
+              <div style={{ flex: 1 }} />
+              <button type="button" className="btn btn-ghost" onClick={() => { setShowPersonForm(false); setEditingPerson(null); }}>Cancel</button>
+              <button type="submit" className="btn btn-primary">Save</button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       <ConfirmModal

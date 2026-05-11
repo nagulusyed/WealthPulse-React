@@ -4,6 +4,7 @@
     <!-- SMS permissions — required for SmsReceiver and for Settings to show the toggle -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <!-- Required for internet access (Capacitor) -->
     <uses-permission android:name="android.permission.INTERNET" />

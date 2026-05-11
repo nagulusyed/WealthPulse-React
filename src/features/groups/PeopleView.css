@@ -36,3 +36,22 @@
 .person-details { flex: 1; min-width: 0; }
 .person-name { font-size: 0.9rem; font-weight: 600; }
 .person-meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+
+/* Mode Toggle */
+.mode-toggle { display: flex; background: var(--bg-card); border-radius: var(--radius-md); padding: 4px; margin-bottom: 1.5rem; border: var(--border-card); }
+.mode-btn { flex: 1; border: none; background: none; padding: 8px; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); border-radius: calc(var(--radius-md) - 2px); cursor: pointer; transition: all 0.2s; }
+.mode-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(var(--primary-rgb), 0.2); }
+
+/* Search Results */
+.contact-search-container { min-height: 250px; display: flex; flex-direction: column; }
+.search-results { margin-top: 0.75rem; border: var(--border-card); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-card-hover); max-height: 300px; overflow-y: auto; }
+.search-status { padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+.search-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-bottom: var(--border-card); cursor: pointer; transition: background 0.2s; }
+.search-item:last-child { border-bottom: none; }
+.search-item:hover { background: var(--bg-card); }
+.search-item-info { flex: 1; min-width: 0; }
+.search-item-name { font-size: 0.85rem; font-weight: 600; color: var(--text-main); }
+.search-item-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; display: flex; gap: 0.5rem; }
+.upi-found { color: var(--success); font-weight: 600; }
+
+.avatar-xs { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; flex-shrink: 0; }

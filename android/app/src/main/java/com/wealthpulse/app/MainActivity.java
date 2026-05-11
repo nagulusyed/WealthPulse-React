@@ -28,6 +28,7 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(BackgroundServicePlugin.class);
         registerPlugin(AlertsPlugin.class);
+        registerPlugin(ContactsPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Create notification channels early so they are ready before any alert fires

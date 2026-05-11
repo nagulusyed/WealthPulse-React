@@ -110,7 +110,10 @@ export function GroupDetail({ groupId, onBack }) {
           if (!p) return null;
           return (
             <div key={mId} className="avatar-chip">
-              <div className="avatar-sm" style={{ background: p.color }}>{p.initials}</div>
+              {p.avatar ? (
+                <img src={p.avatar} className="avatar-sm" alt={p.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+              ) : null}
+              <div className="avatar-sm" style={{ background: p.color, display: p.avatar ? 'none' : 'flex' }}>{p.initials}</div>
               <span>{p.name}</span>
             </div>
           );
@@ -202,7 +205,10 @@ export function GroupDetail({ groupId, onBack }) {
                 if (!p) return null;
                 return (
                   <div key={mId} className="txn-item">
-                    <div className="avatar-sm" style={{ background: p.color }}>{p.initials}</div>
+                    {p.avatar ? (
+                      <img src={p.avatar} className="avatar-sm" alt={p.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                    ) : null}
+                    <div className="avatar-sm" style={{ background: p.color, display: p.avatar ? 'none' : 'flex' }}>{p.initials}</div>
                     <div className="txn-details"><div className="txn-desc">{p.name}</div></div>
                     <div className={`txn-amount ${bal > 0.01 ? 'income' : bal < -0.01 ? 'expense' : ''} ${blur}`}>
                       {bal > 0.01 ? `Gets ${formatCurrency(bal)}` : bal < -0.01 ? `Owes ${formatCurrency(Math.abs(bal))}` : 'Settled'}
@@ -225,7 +231,10 @@ export function GroupDetail({ groupId, onBack }) {
                   const isYouInvolved = t.from === 'self' || t.to === 'self';
                   return (
                     <div key={i} className="txn-item">
-                      <div className="avatar-sm" style={{ background: fromP?.color || '#888' }}>{fromP?.initials}</div>
+                      {fromP?.avatar ? (
+                        <img src={fromP.avatar} className="avatar-sm" alt={fromP?.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                      ) : null}
+                      <div className="avatar-sm" style={{ background: fromP?.color || '#888', display: fromP?.avatar ? 'none' : 'flex' }}>{fromP?.initials}</div>
                       <div className="txn-details" style={{ fontSize: '0.85rem' }}>
                         <strong>{fromP?.name}</strong> → <strong>{toP?.name}</strong>
                       </div>
@@ -265,7 +274,10 @@ export function GroupDetail({ groupId, onBack }) {
               if (!p) return null;
               return (
                 <div key={sp.personId} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.4rem 0' }}>
-                  <div className="avatar-sm" style={{ background: p.color }}>{p.initials}</div>
+                  {p.avatar ? (
+                    <img src={p.avatar} className="avatar-sm" alt={p.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                  ) : null}
+                  <div className="avatar-sm" style={{ background: p.color, display: p.avatar ? 'none' : 'flex' }}>{p.initials}</div>
                   <span style={{ flex: 1, fontSize: '0.875rem', fontWeight: 500 }}>{p.name}</span>
                   <span className={blur} style={{ fontSize: '0.875rem', fontWeight: 600 }}>{formatCurrency(sp.share)}</span>
                 </div>
@@ -297,7 +309,10 @@ export function GroupDetail({ groupId, onBack }) {
               {otherPeople.map((p) => (
                 <label key={p.id} className="member-checkbox">
                   <input type="checkbox" checked={editGroupMembers.includes(p.id)} onChange={() => toggleEditMember(p.id)} />
-                  <div className="avatar-sm" style={{ background: p.color }}>{p.initials}</div>
+                  {p.avatar ? (
+                    <img src={p.avatar} className="avatar-sm" alt={p.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                  ) : null}
+                  <div className="avatar-sm" style={{ background: p.color, display: p.avatar ? 'none' : 'flex' }}>{p.initials}</div>
                   <span>{p.name}</span>
                 </label>
               ))}

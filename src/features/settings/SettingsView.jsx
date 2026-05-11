@@ -27,15 +27,22 @@ export function SettingsView({ showToast }) {
   const theme    = useStore((s) => s.theme);
   const setTheme = useStore((s) => s.setTheme);
 
+  const userUpiId            = useStore((s) => s.userUpiId);
+  const setUserUpiId         = useStore((s) => s.setUserUpiId);
+
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [showSecQModal, setShowSecQModal] = useState(false);
+  const [showUpiModal, setShowUpiModal] = useState(false);
 
   // Change PIN state
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [pinError, setPinError] = useState('');
+
+  // UPI ID state
+  const [tempUpiId, setTempUpiId] = useState(userUpiId);
 
   // Security Question state
   const [secQIndex, setSecQIndex] = useState(storage.getSecQIndex() || '0');
@@ -143,6 +150,16 @@ export function SettingsView({ showToast }) {
               <div className="settings-item-text">
                 <div className="settings-item-title">Change PIN</div>
                 <div className="settings-item-subtitle">Update your security PIN</div>
+              </div>
+            </div>
+            <span className="settings-chevron">›</span>
+          </button>
+          <button className="settings-item" onClick={() => { setTempUpiId(userUpiId); setShowUpiModal(true); }}>
+            <div className="settings-item-main">
+              <div className="settings-item-icon">💳</div>
+              <div className="settings-item-text">
+                <div className="settings-item-title">Your UPI ID</div>
+                <div className="settings-item-subtitle">{userUpiId || 'Set VPA for payment requests'}</div>
               </div>
             </div>
             <span className="settings-chevron">›</span>
@@ -391,6 +408,33 @@ export function SettingsView({ showToast }) {
             <button type="submit" className="btn btn-primary">Save</button>
           </div>
         </form>
+      </Modal>
+
+      {/* UPI ID Modal */}
+      <Modal isOpen={showUpiModal} onClose={() => setShowUpiModal(false)} title="Your UPI ID">
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
+          This is used to generate payment request links when friends owe you money.
+        </p>
+        <div className="form-group">
+          <label className="form-label">UPI ID (VPA)</label>
+          <input 
+            className="form-input" 
+            value={tempUpiId} 
+            onChange={(e) => setTempUpiId(e.target.value)} 
+            placeholder="e.g. name@okhdfcbank" 
+            autoFocus
+          />
+        </div>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+          <button type="button" className="btn btn-ghost" onClick={() => setShowUpiModal(false)}>Cancel</button>
+          <button 
+            type="button" 
+            className="btn btn-primary" 
+            onClick={() => { setUserUpiId(tempUpiId); setShowUpiModal(false); showToast?.('UPI ID saved'); }}
+          >
+            Save
+          </button>
+        </div>
       </Modal>
 
       <ConfirmModal isOpen={showResetConfirm} onClose={() => setShowResetConfirm(false)} onConfirm={handleReset}

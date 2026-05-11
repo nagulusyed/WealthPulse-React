@@ -34,7 +34,12 @@ function setupAutoThemeListener(theme) {
 const useStore = create((set, get) => ({
   // ── Auth ──
   isLocked: true,
-  setLocked: (locked) => set({ isLocked: locked }),
+  // ── User Profile ──
+  userUpiId: localStorage.getItem('wp_user_upi_id') || '',
+  setUserUpiId: (upiId) => {
+    localStorage.setItem('wp_user_upi_id', upiId);
+    set({ userUpiId: upiId });
+  },
 
   // ── Privacy ──
   privacyMode: storage.getPrivacyMode(),
@@ -92,16 +97,38 @@ const useStore = create((set, get) => ({
 
   // ── People ──
   people: storage.getPeople(),
-  addPerson: (name) => {
+  addPerson: (data) => {
     const people = get().people;
-    const person = { id: generateId('p_'), name: name.trim(), initials: getInitials(name.trim()), color: AVATAR_COLORS[people.length % AVATAR_COLORS.length], createdAt: new Date().toISOString() };
+    const name = typeof data === 'string' ? data : data.name;
+    const person = {
+      id: generateId('p_'),
+      name: name.trim(),
+      initials: getInitials(name.trim()),
+      color: AVATAR_COLORS[people.length % AVATAR_COLORS.length],
+      createdAt: new Date().toISOString(),
+      phone: data.phone || '',
+      upiId: data.upiId || '',
+      contactId: data.contactId || null,
+      avatar: data.avatar || null
+    };
     const updated = [...people, person];
     storage.savePeople(updated);
     set({ people: updated });
     return person;
   },
-  updatePerson: (id, name) => {
-    const updated = get().people.map((p) => p.id === id ? { ...p, name: name.trim(), initials: getInitials(name.trim()) } : p);
+  updatePerson: (id, data) => {
+    const updated = get().people.map((p) => {
+      if (p.id === id) {
+        const name = data.name || p.name;
+        return {
+          ...p,
+          ...data,
+          name: name.trim(),
+          initials: getInitials(name.trim())
+        };
+      }
+      return p;
+    });
     storage.savePeople(updated);
     set({ people: updated });
   },

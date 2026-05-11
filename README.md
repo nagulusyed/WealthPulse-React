@@ -21,6 +21,15 @@ APK output: `android/app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 
+## What's New in v3.7
+- **Native UPI Integration** — One-tap settlement via standard `upi://pay` deep links, supporting GPay, PhonePe, Paytm, and BHIM.
+- **Android Contacts Plugin** — Custom native bridge (`ContactsPlugin.java`) for secure contact searching and linking within the app.
+- **UPI Auto-Detection** — Automatically extracts UPI IDs and contact photos from native Android contact records during search.
+- **Smart Request Flow** — Direct-to-WhatsApp payment requests with pre-filled links and transaction details.
+- **Fast-Track Settlement** — Direct "₹ Pay" button in settlement lists with post-payment verification modals.
+
+---
+
 ## What's New in v3.6
 
 ### 🛠️ Performance & Stabilization
@@ -211,6 +220,7 @@ android/app/src/main/java/com/wealthpulse/app/
 ├── SmsReceiver.java               # Receives SMS_RECEIVED; queues to SharedPreferences
 ├── NotificationListener.java     # Intercepts bank app notifications as fallback
 ├── ForegroundService.java         # Persistent background service with notification
+├── ContactsPlugin.java            # Native bridge for contact searching & UPI extraction
 └── BackgroundServicePlugin.java   # Capacitor bridge for service control
 ```
 
@@ -320,4 +330,5 @@ Check `[WP-SMS]` log lines to trace the full pipeline.
 | `INTERNET` | Capacitor WebView |
 | `FOREGROUND_SERVICE` | Keep app active in background |
 | `POST_NOTIFICATIONS` | Show service notification (Android 13+) |
+| `READ_CONTACTS` | Search and link phone contacts for UPI payments |
 | Notification Access (special) | Fallback — intercept bank app push notifications |
