@@ -4,18 +4,12 @@ import { CATEGORIES } from '../../services/categories';
 import useStore from '../../store/useStore';
 
 export function QuickSplitModal({ pendingItem, onClose }) {
-  // Hard guard — only debit, non-self transfers
-  if (pendingItem.type !== 'debit' || pendingItem.isSelfTransfer) return null;
-
   const people = useStore((s) => s.people);
   const groups = useStore((s) => s.groups);
   const addGroupExpense = useStore((s) => s.addGroupExpense);
   const addGroup = useStore((s) => s.addGroup);
   const dismissPendingSms = useStore((s) => s.dismissPendingSms);
   const rememberPayeeCategory = useStore((s) => s.rememberPayeeCategory);
-
-  const friends = people.filter((p) => p.id !== 'self');
-  const total = pendingItem.amount;
 
   const [selectedFriends, setSelectedFriends] = useState([]);
   const [selectedGroupId, setSelectedGroupId] = useState('');
@@ -26,6 +20,11 @@ export function QuickSplitModal({ pendingItem, onClose }) {
   const [validationMsg, setValidationMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Guard — only debit, non-self transfers
+  if (pendingItem.type !== 'debit' || pendingItem.isSelfTransfer) return null;
+
+  const friends = people.filter((p) => p.id !== 'self');
+  const total = pendingItem.amount;
   const allMembers = ['self', ...selectedFriends];
 
   const getShares = () => {

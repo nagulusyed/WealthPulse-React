@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Modal } from '../../components/ui/Modal';
 import useStore from '../../store/useStore';
 import { CATEGORIES } from '../../services/categories';
 import { formatCurrency, formatMonthLabel } from '../../utils/formatters';
@@ -23,11 +24,20 @@ export function BudgetView() {
     });
   }, [transactions, budgets]);
 
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [editValue, setEditValue] = useState('');
+
   const handleEditLimit = (cat) => {
-    const newLimit = prompt(`Set monthly budget for ${cat.name} (₹):`, cat.limit || '');
-    if (newLimit !== null && !isNaN(parseFloat(newLimit)) && parseFloat(newLimit) >= 0) {
-      setBudgetLimit(cat.id, parseFloat(newLimit));
+    setEditingCategory(cat);
+    setEditValue(String(cat.limit || ''));
+  };
+
+  const handleSaveLimit = () => {
+    const val = parseFloat(editValue);
+    if (!isNaN(val) && val >= 0) {
+      setBudgetLimit(editingCategory.id, val);
     }
+    setEditingCategory(null);
   };
 
   const blur = privacyMode ? 'private-blur' : '';
@@ -66,6 +76,31 @@ export function BudgetView() {
           </div>
         ))}
       </div>
+
+      {editingCategory && (
+        <Modal
+          isOpen
+          onClose={() => setEditingCategory(null)}
+          title={`Set Budget: ${editingCategory.name}`}
+        >
+          <div className="form-group">
+            <label className="form-label">Monthly Limit (₹)</label>
+            <input
+              type="number"
+              className="form-input"
+              autoFocus
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveLimit()}
+              placeholder="e.g. 5000"
+            />
+          </div>
+          <div className="modal-actions" style={{ marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+            <button className="btn btn-ghost" onClick={() => setEditingCategory(null)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleSaveLimit}>Save Limit</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

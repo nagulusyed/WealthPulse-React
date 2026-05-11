@@ -23,24 +23,17 @@ export function PinLockScreen() {
   const [secQAnswer, setSecQAnswer] = useState('');
   const [recoveryAnswer, setRecoveryAnswer] = useState('');
 
-  // Use ref for firstPin to avoid stale closure issues
   const firstPinRef = useRef(null);
 
   // Auto-trigger biometrics if enabled
   useEffect(() => {
     if (mode === 'enter' && biometricsEnabled) {
-      const timer = setTimeout(() => {
-        verifyBiometrics();
-      }, 500); // Small delay for visual smooth transition
+      const timer = setTimeout(() => { verifyBiometrics(); }, 500);
       return () => clearTimeout(timer);
     }
   }, [mode, biometricsEnabled, verifyBiometrics]);
 
-  const subtitle = {
-    create: 'Create a 4-digit PIN',
-    confirm: 'Confirm your PIN',
-    enter: 'Enter your PIN to continue',
-  }[mode] || '';
+  const subtitle = { create: 'Create a 4-digit PIN', confirm: 'Confirm your PIN', enter: 'Enter your PIN to continue' }[mode] || '';
 
   const resetCreateFlow = useCallback(() => {
     firstPinRef.current = null;
@@ -50,10 +43,7 @@ export function PinLockScreen() {
 
   const doShake = useCallback(() => {
     setShake(true);
-    setTimeout(() => {
-      setShake(false);
-      setPin('');
-    }, 600);
+    setTimeout(() => { setShake(false); setPin(''); }, 600);
   }, []);
 
   const unlock = useCallback(() => {
@@ -64,42 +54,31 @@ export function PinLockScreen() {
   // Handle PIN completion
   useEffect(() => {
     if (pin.length !== PIN_LENGTH) return;
-
     const timer = setTimeout(async () => {
       if (mode === 'create') {
-        // Step 1: Store first PIN, move to confirm
         firstPinRef.current = pin;
         setMode('confirm');
         setPin('');
         setError('');
       } else if (mode === 'confirm') {
-        // Step 2: Validate against first PIN
         if (pin === firstPinRef.current) {
-          // Match — save hash and proceed
           const hash = await hashPin(pin);
           storage.savePinHash(hash);
           firstPinRef.current = null;
           setShowSecQSetup(true);
         } else {
-          // Mismatch — full reset to step 1
           setError("PINs don't match. Start over.");
           doShake();
           firstPinRef.current = null;
-          // Reset to create after shake animation
           setTimeout(() => setMode('create'), 600);
         }
       } else if (mode === 'enter') {
         const hash = await hashPin(pin);
         const stored = storage.getPinHash();
-        if (hash === stored) {
-          unlock();
-        } else {
-          setError('Wrong PIN. Try again.');
-          doShake();
-        }
+        if (hash === stored) { unlock(); }
+        else { setError('Wrong PIN. Try again.'); doShake(); }
       }
     }, 200);
-
     return () => clearTimeout(timer);
   }, [pin, mode, doShake, unlock]);
 
@@ -107,23 +86,14 @@ export function PinLockScreen() {
   useEffect(() => {
     const handler = (e) => {
       if (showSecQSetup || showRecovery) return;
-      if (e.key >= '0' && e.key <= '9') {
-        setPin((p) => (p.length < PIN_LENGTH ? p + e.key : p));
-        setError('');
-      } else if (e.key === 'Backspace') {
-        setPin((p) => p.slice(0, -1));
-      }
+      if (e.key >= '0' && e.key <= '9') { setPin((p) => (p.length < PIN_LENGTH ? p + e.key : p)); setError(''); }
+      else if (e.key === 'Backspace') { setPin((p) => p.slice(0, -1)); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [showSecQSetup, showRecovery]);
 
-  const addDigit = (d) => {
-    if (pin.length >= PIN_LENGTH) return;
-    setPin((p) => p + d);
-    setError('');
-  };
-
+  const addDigit = (d) => { if (pin.length >= PIN_LENGTH) return; setPin((p) => p + d); setError(''); };
   const removeDigit = () => setPin((p) => p.slice(0, -1));
 
   const handleSaveSecQ = async () => {
@@ -159,9 +129,7 @@ export function PinLockScreen() {
   if (showSecQSetup) {
     return (
       <div className="lock-screen">
-        <div className="lock-bg" />
-        <div className="lock-orb lock-orb-1" />
-        <div className="lock-orb lock-orb-2" />
+        <div className="lock-bg" /><div className="lock-orb lock-orb-1" /><div className="lock-orb lock-orb-2" />
         <div className="lock-container">
           <LockLogo />
           <p className="lock-subtitle">Add a recovery method</p>
@@ -184,9 +152,7 @@ export function PinLockScreen() {
   if (showRecovery) {
     return (
       <div className="lock-screen">
-        <div className="lock-bg" />
-        <div className="lock-orb lock-orb-1" />
-        <div className="lock-orb lock-orb-2" />
+        <div className="lock-bg" /><div className="lock-orb lock-orb-1" /><div className="lock-orb lock-orb-2" />
         <div className="lock-container">
           <LockLogo />
           <p className="lock-subtitle">Recover PIN</p>
@@ -206,10 +172,7 @@ export function PinLockScreen() {
 
   return (
     <div className="lock-screen">
-      <div className="lock-bg" />
-      <div className="lock-orb lock-orb-1" />
-      <div className="lock-orb lock-orb-2" />
-      <div className="lock-orb lock-orb-3" />
+      <div className="lock-bg" /><div className="lock-orb lock-orb-1" /><div className="lock-orb lock-orb-2" /><div className="lock-orb lock-orb-3" />
       <div className="lock-container">
         <LockLogo />
         <p className="lock-subtitle">{subtitle}</p>
@@ -226,22 +189,26 @@ export function PinLockScreen() {
             </button>
           ))}
           {biometricsEnabled && mode === 'enter' ? (
-            <button className="pin-key pin-key-action" onClick={() => { console.log('[UI] Biometric button clicked'); verifyBiometrics(); }} aria-label="Biometric Login">
+            <button className="pin-key pin-key-action" onClick={() => verifyBiometrics()} aria-label="Biometric Login">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 10a2 2 0 0 0-2 2M12 14a2 2 0 0 1-2-2M7 8a7 7 0 0 1 10 10M3 12a10 10 0 0 1 14.9-8.4M17 12a5 5 0 0 1-5 5"/></svg>
             </button>
           ) : (
             <div className="pin-key pin-key-ghost" />
           )}
-          <button className="pin-key" onClick={() => addDigit('0')}>
-            <span className="pin-key-num">0</span>
-          </button>
+          <button className="pin-key" onClick={() => addDigit('0')}><span className="pin-key-num">0</span></button>
           <button className="pin-key pin-key-action" onClick={removeDigit} aria-label="Backspace">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 12H9M9 12l4-4M9 12l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
         </div>
         {mode === 'enter' && (
           <div className="lock-links">
-            <button className="lock-link" onClick={() => { storage.removePinHash(); resetCreateFlow(); setError(''); }}>Change PIN</button>
+            <button className="lock-link" onClick={() => {
+              // Clear PIN and old security question before starting fresh create flow
+              storage.removePinHash();
+              storage.removeSecQ();
+              resetCreateFlow();
+              setError('');
+            }}>Change PIN</button>
             <span className="lock-link-divider">•</span>
             <button className="lock-link" onClick={() => { setShowRecovery(true); setError(''); }}>Forgot PIN?</button>
           </div>

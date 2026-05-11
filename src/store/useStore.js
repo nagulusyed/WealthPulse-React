@@ -17,6 +17,20 @@ function applyTheme(theme) {
   if (meta) meta.content = resolved === 'light' ? '#f5f5f7' : '#050505';
 }
 
+// Listen for OS theme changes when theme is set to 'auto'
+let autoThemeMediaQuery = null;
+function setupAutoThemeListener(theme) {
+  if (autoThemeMediaQuery) {
+    autoThemeMediaQuery.removeEventListener('change', autoThemeMediaQuery._handler);
+    autoThemeMediaQuery = null;
+  }
+  if (theme === 'auto') {
+    autoThemeMediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+    autoThemeMediaQuery._handler = () => applyTheme('auto');
+    autoThemeMediaQuery.addEventListener('change', autoThemeMediaQuery._handler);
+  }
+}
+
 const useStore = create((set, get) => ({
   // ── Auth ──
   isLocked: true,
@@ -35,6 +49,7 @@ const useStore = create((set, get) => ({
   setTheme: (theme) => {
     localStorage.setItem('wp_theme', theme);
     applyTheme(theme);
+    setupAutoThemeListener(theme);
     set({ theme });
   },
 
@@ -91,9 +106,27 @@ const useStore = create((set, get) => ({
     set({ people: updated });
   },
   deletePerson: (id) => {
-    const updated = get().people.filter((p) => p.id !== id);
-    storage.savePeople(updated);
-    set({ people: updated });
+    // 1. Remove from people list
+    const updatedPeople = get().people.filter((p) => p.id !== id);
+    storage.savePeople(updatedPeople);
+
+    // 2. Remove from all groups' member lists
+    const updatedGroups = get().groups.map((g) => ({
+      ...g,
+      memberIds: g.memberIds.filter((m) => m !== id),
+    }));
+    storage.saveGroups(updatedGroups);
+
+    // 3. Clean up group expenses — delete expenses they paid, remove from splits
+    const updatedExpenses = get().groupExpenses
+      .filter((e) => e.paidBy !== id)
+      .map((e) => ({
+        ...e,
+        splits: e.splits.filter((s) => s.personId !== id),
+      }));
+    storage.saveGroupExpenses(updatedExpenses);
+
+    set({ people: updatedPeople, groups: updatedGroups, groupExpenses: updatedExpenses });
   },
   getPersonById: (id) => get().people.find((p) => p.id === id),
 
@@ -194,16 +227,22 @@ const useStore = create((set, get) => ({
     const transactions = [];
     let d = 0, c = 0;
     while (d < debtors.length && c < creditors.length) {
-      const debtor = debtors[d]; const creditor = creditors[c];
+      const debtor = debtors[d];
+      const creditor = creditors[c];
       const amount = Math.min(Math.abs(debtor.balance), creditor.balance);
       if (amount > 0.01) transactions.push({ from: debtor.id, to: creditor.id, amount, groupId });
-      debtor.balance += amount; creditor.balance -= amount;
+      debtor.balance += amount;
+      creditor.balance -= amount;
       if (Math.abs(debtor.balance) < 0.01) d++;
-      if (creditor.balance < 0.01) c++;
+      if (Math.abs(creditor.balance) < 0.01) c++;  // fixed: was creditor.balance < 0.01
     }
     return transactions;
   },
-  getAllSettlements: () => { let all = []; get().groups.forEach((g) => { all.push(...get().getSimplifiedSettlements(g.id)); }); return all; },
+  getAllSettlements: () => {
+    let all = [];
+    get().groups.forEach((g) => { all.push(...get().getSimplifiedSettlements(g.id)); });
+    return all;
+  },
   settleDebt: (fromId, toId, groupId, amount) => {
     const exp = { id: generateId('set_'), groupId, description: 'Settlement', amount, paidBy: fromId, date: new Date().toISOString().split('T')[0], splitMethod: 'equal', splits: [{ personId: toId, share: amount }], settledBy: [], createdAt: new Date().toISOString() };
     const updated = [...get().groupExpenses, exp];
@@ -229,10 +268,21 @@ const useStore = create((set, get) => ({
   },
 
   // ── Alerts (push notifications) ──
+  // Master toggle + per-type toggles — all persisted to localStorage
   alertsEnabled: localStorage.getItem('wp_alerts_enabled') !== 'false',
+  budgetAlertsEnabled: localStorage.getItem('wp_budget_alerts') !== 'false',
+  settlementAlertsEnabled: localStorage.getItem('wp_settlement_alerts') !== 'false',
   setAlertsEnabled: (enabled) => {
     localStorage.setItem('wp_alerts_enabled', String(enabled));
     set({ alertsEnabled: enabled });
+  },
+  setBudgetAlertsEnabled: (enabled) => {
+    localStorage.setItem('wp_budget_alerts', String(enabled));
+    set({ budgetAlertsEnabled: enabled });
+  },
+  setSettlementAlertsEnabled: (enabled) => {
+    localStorage.setItem('wp_settlement_alerts', String(enabled));
+    set({ settlementAlertsEnabled: enabled });
   },
 
   // ── SMS Auto-capture ──
@@ -332,5 +382,9 @@ const useStore = create((set, get) => ({
   },
 }));
 
-applyTheme(useStore.getState().theme);
+// Apply theme on boot and set up auto-listener if needed
+const initialTheme = useStore.getState().theme;
+applyTheme(initialTheme);
+setupAutoThemeListener(initialTheme);
+
 export default useStore;

@@ -53,7 +53,6 @@ public class AlertsPlugin extends Plugin {
     }
 
     // ── 2. Budget — fires ONCE per category per month at 100% ────
-    // Payload: { budgets: [ { name, pct, spent, limit, index } ] }
     @PluginMethod
     public void checkBudgets(PluginCall call) {
         try {
@@ -75,7 +74,6 @@ public class AlertsPlugin extends Plugin {
                 int index     = b.optInt("index", i);
                 int notifId   = WpNotificationManager.ID_BUDGET_BASE + index;
 
-                // Only fire once per category per month, only at 100%+
                 String firedKey = "budget_fired_" + name + "_" + monthKey;
 
                 if (pct >= 100 && !prefs.getBoolean(firedKey, false)) {
@@ -84,7 +82,6 @@ public class AlertsPlugin extends Plugin {
                     editor.putBoolean(firedKey, true);
                     fired++;
                 } else if (pct < 100) {
-                    // Reset flag if they add income/delete transactions and go back under
                     editor.remove(firedKey);
                     WpNotificationManager.cancel(getContext(), notifId);
                 }
@@ -101,7 +98,6 @@ public class AlertsPlugin extends Plugin {
     }
 
     // ── 3. Settlements — max 2/day, once per person per day ──────
-    // Payload: { settlements: [ { name, amount, daysOld, youAreOwed, index } ] }
     @PluginMethod
     public void checkSettlements(PluginCall call) {
         try {
@@ -113,12 +109,10 @@ public class AlertsPlugin extends Plugin {
             SharedPreferences.Editor editor = prefs.edit();
             String todayKey = getTodayKey();
 
-            // How many settlement notifications have already fired today?
             int firedTodayCount = prefs.getInt("settle_count_" + todayKey, 0);
             int fired = 0;
 
             for (int i = 0; i < settlements.length(); i++) {
-                // Stop if we've hit the daily cap
                 if (firedTodayCount >= MAX_SETTLE_PER_DAY) break;
 
                 JSONObject s    = settlements.getJSONObject(i);
@@ -129,13 +123,11 @@ public class AlertsPlugin extends Plugin {
                 int index       = s.optInt("index", i);
                 int notifId     = WpNotificationManager.ID_SETTLE_BASE + index;
 
-                // Skip if not old enough to be a reminder
                 if (daysOld < 3) {
                     WpNotificationManager.cancel(getContext(), notifId);
                     continue;
                 }
 
-                // One reminder per person per day
                 String personKey = "settle_person_" + name + "_" + todayKey;
                 if (prefs.getBoolean(personKey, false)) continue;
 
@@ -146,7 +138,6 @@ public class AlertsPlugin extends Plugin {
                 fired++;
             }
 
-            // Persist updated daily count
             editor.putInt("settle_count_" + todayKey, firedTodayCount);
             editor.apply();
 
@@ -167,18 +158,26 @@ public class AlertsPlugin extends Plugin {
         return r;
     }
 
-    /** Returns "YYYY-MM" — used as budget monthly key */
+    /**
+     * Returns zero-padded "YYYY-MM" — matches JS getMonthKey() format.
+     * e.g. May 2026 → "2026-05" (not "2026-5")
+     */
     private String getMonthKey() {
         java.util.Calendar c = java.util.Calendar.getInstance();
-        return c.get(java.util.Calendar.YEAR) + "-"
-                + (c.get(java.util.Calendar.MONTH) + 1);
+        int month = c.get(java.util.Calendar.MONTH) + 1;
+        return c.get(java.util.Calendar.YEAR) + "-" + String.format("%02d", month);
     }
 
-    /** Returns "YYYY-MM-DD" — used as daily settlement key */
+    /**
+     * Returns zero-padded "YYYY-MM-DD" — used as daily settlement key.
+     * e.g. "2026-05-10"
+     */
     private String getTodayKey() {
         java.util.Calendar c = java.util.Calendar.getInstance();
+        int month = c.get(java.util.Calendar.MONTH) + 1;
+        int day   = c.get(java.util.Calendar.DAY_OF_MONTH);
         return c.get(java.util.Calendar.YEAR) + "-"
-                + (c.get(java.util.Calendar.MONTH) + 1) + "-"
-                + c.get(java.util.Calendar.DAY_OF_MONTH);
+                + String.format("%02d", month) + "-"
+                + String.format("%02d", day);
     }
 }

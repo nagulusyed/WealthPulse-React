@@ -46,6 +46,8 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String text = intent.getStringExtra("sms_text");
+                if (text == null) text = intent.getStringExtra(NotificationListener.EXTRA_TEXT);
+
                 if (text != null && !text.isEmpty()) {
                     Log.d(TAG, "Live broadcast received");
                     dispatchToWebView(text);

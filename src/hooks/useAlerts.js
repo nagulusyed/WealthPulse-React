@@ -1,15 +1,3 @@
-// src/hooks/useAlerts.js
-// ─────────────────────────────────────────────────────────────
-// Runs alert checks whenever relevant store state changes.
-// Mount this once in App.jsx — it watches:
-//   • pendingSmsTransactions → syncs badge count
-//   • budgets + monthly transactions → checks budget thresholds
-//   • settlements + people → checks settlement reminders
-//
-// All checks are debounced 2 seconds to avoid hammering on rapid
-// state changes (e.g. bulk import).
-// ─────────────────────────────────────────────────────────────
-
 import { useEffect, useRef } from 'react';
 import useStore from '../store/useStore';
 import {
@@ -26,36 +14,38 @@ export function useAlerts() {
   const people                 = useStore((s) => s.people);
   const groupExpenses          = useStore((s) => s.groupExpenses);
   const alertsEnabled          = useStore((s) => s.alertsEnabled);
+  const budgetAlertsEnabled    = useStore((s) => s.budgetAlertsEnabled);
+  const settlementAlertsEnabled = useStore((s) => s.settlementAlertsEnabled);
 
-  const budgetTimer    = useRef(null);
-  const settlTimer     = useRef(null);
+  const budgetTimer = useRef(null);
+  const settlTimer  = useRef(null);
 
-  // ── Pending SMS — immediate, no debounce ──────────────────
+  // ── Pending SMS badge — immediate, no debounce ──
   useEffect(() => {
     if (!alertsEnabled) {
-      syncPendingCount(0); // clear badge
+      syncPendingCount(0);
       return;
     }
     syncPendingCount(pendingSmsTransactions.length);
   }, [pendingSmsTransactions.length, alertsEnabled]);
 
-  // ── Budget alerts — debounced 2s ──────────────────────────
+  // ── Budget alerts — debounced 2s, respects per-type toggle ──
   useEffect(() => {
-    if (!alertsEnabled) return;
+    if (!alertsEnabled || !budgetAlertsEnabled) return;
     clearTimeout(budgetTimer.current);
     budgetTimer.current = setTimeout(() => {
       checkBudgetAlerts(budgets, transactions);
     }, 2000);
     return () => clearTimeout(budgetTimer.current);
-  }, [budgets, transactions, alertsEnabled]);
+  }, [budgets, transactions, alertsEnabled, budgetAlertsEnabled]);
 
-  // ── Settlement reminders — debounced 2s ───────────────────
+  // ── Settlement reminders — debounced 2s, respects per-type toggle ──
   useEffect(() => {
-    if (!alertsEnabled) return;
+    if (!alertsEnabled || !settlementAlertsEnabled) return;
     clearTimeout(settlTimer.current);
     settlTimer.current = setTimeout(() => {
       checkSettlementAlerts(allSettlements, people, groupExpenses);
     }, 2000);
     return () => clearTimeout(settlTimer.current);
-  }, [allSettlements, people, groupExpenses, alertsEnabled]);
+  }, [allSettlements, people, groupExpenses, alertsEnabled, settlementAlertsEnabled]);
 }

@@ -7,27 +7,29 @@ import { SECURITY_QUESTIONS } from '../../services/categories';
 import './SettingsView.css';
 
 export function SettingsView({ showToast }) {
-  const resetAll = useStore((s) => s.resetAll);
-  const exportData = useStore((s) => s.exportData);
-  const importData = useStore((s) => s.importData);
-  const transactions = useStore((s) => s.transactions);
-  const privacyMode = useStore((s) => s.privacyMode);
-  const togglePrivacy = useStore((s) => s.togglePrivacy);
-  const smsEnabled = useStore((s) => s.smsEnabled);
-  const setSmsEnabled = useStore((s) => s.setSmsEnabled);
-  const bgServiceEnabled = useStore((s) => s.bgServiceEnabled);
-  const toggleBgService = useStore((s) => s.toggleBgService);
-  const biometricsEnabled = useStore((s) => s.biometricsEnabled);
-  const setBiometricsEnabled = useStore((s) => s.setBiometricsEnabled);
-  const isBiometricAvailable = useStore((s) => s.isBiometricAvailable);
+  const resetAll               = useStore((s) => s.resetAll);
+  const exportData             = useStore((s) => s.exportData);
+  const importData             = useStore((s) => s.importData);
+  const transactions           = useStore((s) => s.transactions);
+  const privacyMode            = useStore((s) => s.privacyMode);
+  const togglePrivacy          = useStore((s) => s.togglePrivacy);
+  const smsEnabled             = useStore((s) => s.smsEnabled);
+  const setSmsEnabled          = useStore((s) => s.setSmsEnabled);
+  const bgServiceEnabled       = useStore((s) => s.bgServiceEnabled);
+  const toggleBgService        = useStore((s) => s.toggleBgService);
+  const biometricsEnabled      = useStore((s) => s.biometricsEnabled);
+  const setBiometricsEnabled   = useStore((s) => s.setBiometricsEnabled);
+  const isBiometricAvailable   = useStore((s) => s.isBiometricAvailable);
+  const budgetAlertsEnabled    = useStore((s) => s.budgetAlertsEnabled);
+  const setBudgetAlertsEnabled = useStore((s) => s.setBudgetAlertsEnabled);
+  const settlementAlertsEnabled    = useStore((s) => s.settlementAlertsEnabled);
+  const setSettlementAlertsEnabled = useStore((s) => s.setSettlementAlertsEnabled);
+  const theme    = useStore((s) => s.theme);
+  const setTheme = useStore((s) => s.setTheme);
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [showSecQModal, setShowSecQModal] = useState(false);
-  const [budgetAlerts, setBudgetAlerts] = useState(true);
-  const [settlementReminders, setSettlementReminders] = useState(true);
-  const theme = useStore((s) => s.theme);
-  const setTheme = useStore((s) => s.setTheme);
 
   // Change PIN state
   const [currentPin, setCurrentPin] = useState('');
@@ -41,7 +43,6 @@ export function SettingsView({ showToast }) {
 
   const fileRef = useRef(null);
 
-  // Storage info
   const storageUsed = useMemo(() => {
     let total = 0;
     Object.keys(localStorage).forEach((k) => {
@@ -97,17 +98,22 @@ export function SettingsView({ showToast }) {
       setPinError("New PINs don't match");
       return;
     }
-    const currentHash = await hashPin(currentPin);
     const storedHash = storage.getPinHash();
-    if (storedHash && currentHash !== storedHash) {
-      setPinError('Current PIN is incorrect');
-      return;
+    // Require current PIN verification only if one is already set
+    if (storedHash) {
+      const currentHash = await hashPin(currentPin);
+      if (currentHash !== storedHash) {
+        setPinError('Current PIN is incorrect');
+        return;
+      }
     }
     const newHash = await hashPin(newPin);
     storage.savePinHash(newHash);
+    // Clear old security question so the lock screen doesn't have stale recovery data
+    storage.removeSecQ();
     setShowChangePinModal(false);
     setCurrentPin(''); setNewPin(''); setConfirmPin('');
-    showToast?.('PIN updated successfully');
+    showToast?.('PIN updated — please set a new security question');
   };
 
   const handleSaveSecQ = async (e) => {
@@ -161,14 +167,11 @@ export function SettingsView({ showToast }) {
                 </div>
               </div>
               <label className="toggle-switch">
-                <input 
-                  type="checkbox" 
-                  checked={biometricsEnabled} 
+                <input type="checkbox" checked={biometricsEnabled}
                   onChange={(e) => {
                     setBiometricsEnabled(e.target.checked);
                     showToast?.(e.target.checked ? 'Biometrics enabled' : 'Biometrics disabled');
-                  }} 
-                />
+                  }} />
                 <span className="toggle-slider" />
               </label>
             </div>
@@ -198,7 +201,7 @@ export function SettingsView({ showToast }) {
               <div className="settings-item-icon">🌙</div>
               <div className="settings-item-text">
                 <div className="settings-item-title">Theme</div>
-                <div className="settings-item-subtitle">Dark mode (Premium)</div>
+                <div className="settings-item-subtitle">Choose appearance</div>
               </div>
             </div>
             <select className="settings-select" value={theme} onChange={(e) => setTheme(e.target.value)}>
@@ -257,11 +260,15 @@ export function SettingsView({ showToast }) {
               <div className="settings-item-icon">⚠️</div>
               <div className="settings-item-text">
                 <div className="settings-item-title">Budget Alerts</div>
-                <div className="settings-item-subtitle">Notify at 80% usage</div>
+                <div className="settings-item-subtitle">Notify when budget limit is reached</div>
               </div>
             </div>
             <label className="toggle-switch">
-              <input type="checkbox" checked={budgetAlerts} onChange={(e) => setBudgetAlerts(e.target.checked)} />
+              <input type="checkbox" checked={budgetAlertsEnabled}
+                onChange={(e) => {
+                  setBudgetAlertsEnabled(e.target.checked);
+                  showToast?.(e.target.checked ? 'Budget alerts enabled' : 'Budget alerts disabled');
+                }} />
               <span className="toggle-slider" />
             </label>
           </div>
@@ -270,11 +277,15 @@ export function SettingsView({ showToast }) {
               <div className="settings-item-icon">💸</div>
               <div className="settings-item-text">
                 <div className="settings-item-title">Settlement Reminders</div>
-                <div className="settings-item-subtitle">Every 3 days</div>
+                <div className="settings-item-subtitle">Remind after 3 days</div>
               </div>
             </div>
             <label className="toggle-switch">
-              <input type="checkbox" checked={settlementReminders} onChange={(e) => setSettlementReminders(e.target.checked)} />
+              <input type="checkbox" checked={settlementAlertsEnabled}
+                onChange={(e) => {
+                  setSettlementAlertsEnabled(e.target.checked);
+                  showToast?.(e.target.checked ? 'Settlement reminders enabled' : 'Settlement reminders disabled');
+                }} />
               <span className="toggle-slider" />
             </label>
           </div>
@@ -289,37 +300,28 @@ export function SettingsView({ showToast }) {
               </div>
             </div>
             <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={smsEnabled}
+              <input type="checkbox" checked={smsEnabled}
                 onChange={(e) => {
                   setSmsEnabled(e.target.checked);
                   showToast?.(e.target.checked ? 'SMS Auto-capture enabled' : 'SMS Auto-capture disabled');
-                }}
-              />
+                }} />
               <span className="toggle-slider" />
             </label>
           </div>
-
           <div className="settings-item">
             <div className="settings-item-main">
               <div className="settings-item-icon">⚡</div>
               <div className="settings-item-text">
                 <div className="settings-item-title">Background Tracking</div>
-                <div className="settings-item-subtitle">
-                  Keep app alive for better SMS detection
-                </div>
+                <div className="settings-item-subtitle">Keep app alive for better SMS detection</div>
               </div>
             </div>
             <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={bgServiceEnabled}
+              <input type="checkbox" checked={bgServiceEnabled}
                 onChange={async () => {
                   await toggleBgService();
                   showToast?.('Background tracking updated');
-                }}
-              />
+                }} />
               <span className="toggle-slider" />
             </label>
           </div>
@@ -330,30 +332,37 @@ export function SettingsView({ showToast }) {
       <div className="settings-card animate-bounce" style={{ animationDelay: '0.5s' }}>
         <h3 className="settings-card-title">ℹ️ About</h3>
         <div className="settings-list">
-          <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Version</div><div className="settings-item-subtitle">v3.3.0 (React)</div></div></div></div>
+          <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Version</div><div className="settings-item-subtitle">v3.3.1 (React)</div></div></div></div>
           <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Storage Used</div><div className="settings-item-subtitle">{storageUsed}</div></div></div></div>
           <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Total Transactions</div><div className="settings-item-subtitle">{transactions.length}</div></div></div></div>
         </div>
       </div>
 
       {/* Change PIN Modal */}
-      <Modal isOpen={showChangePinModal} onClose={() => { setShowChangePinModal(false); setPinError(''); }} title="Change PIN">
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>Enter your current PIN, then set a new one</p>
+      <Modal isOpen={showChangePinModal} onClose={() => { setShowChangePinModal(false); setPinError(''); setCurrentPin(''); setNewPin(''); setConfirmPin(''); }} title="Change PIN">
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
+          Enter your current PIN, then set a new one. Your security question will be cleared and you'll be asked to set a new one.
+        </p>
         <form onSubmit={handleChangePin}>
-          <div className="form-group">
-            <label className="form-label">Current PIN</label>
-            <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric" value={currentPin}
-              onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))} placeholder="Enter current PIN" required />
-          </div>
+          {storage.hasPinSet() && (
+            <div className="form-group">
+              <label className="form-label">Current PIN</label>
+              <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric"
+                value={currentPin} onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
+                placeholder="Enter current PIN" required />
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">New PIN</label>
-            <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric" value={newPin}
-              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))} placeholder="Enter new PIN" required />
+            <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric"
+              value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+              placeholder="Enter new PIN" required />
           </div>
           <div className="form-group">
             <label className="form-label">Confirm New PIN</label>
-            <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric" value={confirmPin}
-              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))} placeholder="Confirm new PIN" required />
+            <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric"
+              value={confirmPin} onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+              placeholder="Confirm new PIN" required />
           </div>
           {pinError && <p className="pin-error" style={{ marginTop: '0.5rem' }}>{pinError}</p>}
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
@@ -364,7 +373,7 @@ export function SettingsView({ showToast }) {
       </Modal>
 
       {/* Security Question Modal */}
-      <Modal isOpen={showSecQModal} onClose={() => setShowSecQModal(false)} title="Security Question">
+      <Modal isOpen={showSecQModal} onClose={() => { setShowSecQModal(false); setSecQAnswer(''); }} title="Security Question">
         <form onSubmit={handleSaveSecQ}>
           <div className="form-group">
             <label className="form-label">Security Question</label>
@@ -374,7 +383,8 @@ export function SettingsView({ showToast }) {
           </div>
           <div className="form-group" style={{ marginTop: '1rem' }}>
             <label className="form-label">Your Answer</label>
-            <input className="form-input" type="text" value={secQAnswer} onChange={(e) => setSecQAnswer(e.target.value)} placeholder="Enter your answer" required />
+            <input className="form-input" type="text" value={secQAnswer}
+              onChange={(e) => setSecQAnswer(e.target.value)} placeholder="Enter your answer" required />
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
             <button type="button" className="btn btn-ghost" onClick={() => setShowSecQModal(false)}>Cancel</button>

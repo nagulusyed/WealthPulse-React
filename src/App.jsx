@@ -54,18 +54,32 @@ function AppShell() {
   }, [fabOpen]);
 
   useEffect(() => {
-    if (window.Capacitor?.Plugins?.App) {
-      const CapApp = window.Capacitor.Plugins.App;
-      CapApp.addListener('backButton', () => {
-        if (isLocked) return;
-        if (showTxnForm) { setShowTxnForm(false); return; }
-        if (showGroupExpenseForm) { setShowGroupExpenseForm(false); return; }
-        if (fabOpen) { setFabOpen(false); return; }
-        if (sidebarOpen) { setSidebarOpen(false); return; }
-        if (window.location.pathname !== '/') { navigate('/'); return; }
-        CapApp.exitApp();
-      });
+    if (!window.Capacitor?.Plugins?.App) return;
+    const CapApp = window.Capacitor.Plugins.App;
+
+    // addListener may return a Promise (Capacitor 4+) or a plain handle object (Capacitor 3).
+    // We handle both cases safely without calling .then() directly.
+    let handle = null;
+    const listenerResult = CapApp.addListener('backButton', () => {
+      if (isLocked) return;
+      if (showTxnForm) { setShowTxnForm(false); return; }
+      if (showGroupExpenseForm) { setShowGroupExpenseForm(false); return; }
+      if (fabOpen) { setFabOpen(false); return; }
+      if (sidebarOpen) { setSidebarOpen(false); return; }
+      if (window.location.pathname !== '/') { navigate('/'); return; }
+      CapApp.exitApp();
+    });
+
+    // Resolve handle whether addListener returned a Promise or a plain object
+    if (listenerResult && typeof listenerResult.then === 'function') {
+      listenerResult.then(h => { handle = h; });
+    } else {
+      handle = listenerResult;
     }
+
+    return () => {
+      try { handle?.remove?.(); } catch (_) {}
+    };
   }, [isLocked, fabOpen, sidebarOpen, showTxnForm, showGroupExpenseForm, navigate]);
 
   const openTxnForm = useCallback((type = 'expense', txn = null) => {
