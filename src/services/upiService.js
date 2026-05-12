@@ -1,52 +1,67 @@
-// ── UPI Deep Link Service ──
+import { registerPlugin } from '@capacitor/core';
+const UpiPlugin = registerPlugin('UpiPlugin');
 
-/**
- * Builds a standard UPI deep link
- * upi://pay?pa=UPI_ID&pn=NAME&am=AMOUNT&cu=INR&tn=NOTE
- */
-export function buildUpiLink({ upiId, name, amount, note }) {
-  if (!upiId) return null;
-  
-  // Minimalist parameters to bypass strict security filters in PhonePe/GPay
-  const url = new URL('upi://pay');
-  url.searchParams.append('pa', upiId);
-  url.searchParams.append('am', amount.toFixed(2));
-  url.searchParams.append('cu', 'INR');
-  url.searchParams.append('tn', 'Payment'); // Simple note
-  url.searchParams.append('tr', `${Math.floor(Math.random() * 1000000)}`); // Random numeric ID
-  
-  return url.toString().replace('upi://pay/?', 'upi://pay?');
-}
-
-/**
- * Opens the UPI payment chooser on Android
- */
 export async function openUpiApp({ upiId, name, amount, note }) {
-  const link = buildUpiLink({ upiId, name, amount, note });
-  if (!link) throw new Error('Invalid UPI ID');
-  
+  if (!upiId) throw new Error('Invalid UPI ID');
   try {
-    // window.open with _system is the most reliable way to trigger 
-    // custom URL schemes (like upi://) on Android in Capacitor.
-    window.open(link, '_system');
-    return true;
+    const result = await UpiPlugin.openUpi({
+      upiId: upiId.trim(),
+      name: (name || '').trim(),
+      amount: parseFloat(amount),
+      note: (note || 'Payment').substring(0, 50),
+    });
+    return result.success === true;
   } catch (e) {
-    console.error('Failed to open UPI app:', e);
-    return false;
+    const msg = typeof e === 'string' ? e : (e?.message || '');
+    if (msg.includes('no_upi_app')) throw new Error('NO_UPI_APP');
+    console.error('openUpiApp error:', e);
+    // Fallback: try window.open — works on web/dev
+    try {
+      const link = buildUpiLink({ upiId, name, amount, note });
+      window.open(link, '_system');
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 }
 
-/**
- * Generates a shareable payment request link (using YOUR UPI ID)
- */
+export async function getInstalledUpiApps() {
+  try {
+    const result = await UpiPlugin.getInstalledUpiApps();
+    return result.apps || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function buildUpiLink({ upiId, name, amount, note }) {
+  if (!upiId) return null;
+  const params = [
+    `pa=${encodeURIComponent(upiId.trim())}`,
+    `pn=${encodeURIComponent((name || '').trim())}`,
+    `am=${parseFloat(amount).toFixed(2)}`,
+    `cu=INR`,
+    `tn=${encodeURIComponent((note || 'Payment').substring(0, 50))}`,
+  ];
+  return `upi://pay?${params.join('&')}`;
+}
+
 export function buildRequestLink({ myUpiId, myName, amount, note }) {
   return buildUpiLink({ upiId: myUpiId, name: myName, amount, note });
 }
 
-/**
- * Formats a UPI ID for display
- */
 export function formatUpiId(upiId) {
-  if (!upiId) return '';
-  return upiId.toLowerCase();
+  return (upiId || '').toLowerCase().trim();
+}
+
+export function getUpiAppFromId(upiId) {
+  if (!upiId) return null;
+  const id = upiId.toLowerCase();
+  if (id.endsWith('@ybl') || id.endsWith('@ibl') || id.endsWith('@axl')) return 'PhonePe';
+  if (id.endsWith('@okicici') || id.endsWith('@okhdfcbank') || id.endsWith('@oksbi') || id.endsWith('@okaxis')) return 'GPay';
+  if (id.endsWith('@paytm')) return 'Paytm';
+  if (id.endsWith('@apl')) return 'Amazon Pay';
+  if (id.endsWith('@upi') || id.endsWith('@npci')) return 'BHIM';
+  return 'UPI';
 }

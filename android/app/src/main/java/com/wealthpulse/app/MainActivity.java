@@ -29,9 +29,9 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(BackgroundServicePlugin.class);
         registerPlugin(AlertsPlugin.class);
         registerPlugin(ContactsPlugin.class);
+        registerPlugin(UpiPlugin.class);
         super.onCreate(savedInstanceState);
 
-        // Create notification channels early so they are ready before any alert fires
         WpNotificationManager.createChannels(this);
 
         handleIntent(getIntent());
@@ -42,13 +42,11 @@ public class MainActivity extends BridgeActivity {
             startForegroundService();
         }
 
-        // Live receiver — catches messages while app is in foreground
         liveReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String text = intent.getStringExtra("sms_text");
                 if (text == null) text = intent.getStringExtra(NotificationListener.EXTRA_TEXT);
-
                 if (text != null && !text.isEmpty()) {
                     Log.d(TAG, "Live broadcast received");
                     dispatchToWebView(text);
@@ -74,7 +72,6 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
-
         getBridge().getWebView().postDelayed(() -> {
             String[] queued = SmsReceiver.drainQueue(this);
             for (String msg : queued) {
@@ -114,7 +111,6 @@ public class MainActivity extends BridgeActivity {
         if (needsNotif) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS);
         }
-
         ActivityCompat.requestPermissions(this, permissions.toArray(new String[0]), SMS_PERMISSION_REQUEST);
     }
 

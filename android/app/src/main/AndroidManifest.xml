@@ -1,19 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- SMS permissions — required for SmsReceiver and for Settings to show the toggle -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
-
-    <!-- Required for internet access (Capacitor) -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Needed on some devices to read notification content reliably -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <!--
+        Android 11+ (API 30+) package visibility — required so queryIntentActivities()
+        can see UPI apps. Without this, the list comes back empty and we can't launch
+        the payment chooser. Each package must be listed explicitly.
+    -->
+    <queries>
+        <!-- UPI intent scheme — catches any app that handles upi:// -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" android:host="pay" />
+        </intent>
+
+        <!-- Major UPI apps by package name (belt-and-suspenders) -->
+        <package android:name="com.phonepe.app" />
+        <package android:name="com.google.android.apps.nbu.paisa.user" />  <!-- GPay -->
+        <package android:name="net.one97.paytm" />
+        <package android:name="in.org.npci.upiapp" />                      <!-- BHIM -->
+        <package android:name="com.amazon.mShop.android.shopping" />       <!-- Amazon Pay -->
+        <package android:name="com.freecharge.android" />
+        <package android:name="com.mobikwik_new" />
+        <package android:name="com.whatsapp" />                            <!-- for payment requests -->
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -36,7 +54,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Share target: receive text shared from any app (Google Messages, etc.) -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -45,7 +62,6 @@
 
         </activity>
 
-        <!-- SMS Broadcast Receiver — receives SMS_RECEIVED broadcasts -->
         <receiver
             android:name=".SmsReceiver"
             android:exported="true"
@@ -55,7 +71,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- Notification Listener Service — reads bank app notifications -->
         <service
             android:name=".NotificationListener"
             android:label="WealthPulse Transaction Detector"
