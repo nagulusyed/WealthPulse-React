@@ -5,11 +5,16 @@ import { formatCurrency, formatMonthLabel, getMonthKey } from '../../utils/forma
 import { isSettlementTxn } from '../../hooks/useYTDSavings';
 
 export function ReportsView() {
-  const transactions = useStore((s) => s.getMonthlyTransactions());
-  const selectedMonth = useStore((s) => s.selectedMonth);
   const allTransactions = useStore((s) => s.transactions);
-  const budgets = useStore((s) => s.budgets);
-  const privacyMode = useStore((s) => s.privacyMode);
+  const selectedMonth   = useStore((s) => s.selectedMonth);
+  const budgets         = useStore((s) => s.budgets);
+  const privacyMode     = useStore((s) => s.privacyMode);
+
+  // Fix: reactive month filtering — same pattern as Dashboard
+  const transactions = useMemo(() => {
+    const key = getMonthKey(selectedMonth);
+    return allTransactions.filter((t) => t.date.startsWith(key));
+  }, [allTransactions, selectedMonth]);
 
   const blur = privacyMode ? 'private-blur' : '';
 
@@ -34,8 +39,7 @@ export function ReportsView() {
     const totalSpent = grossExpense - settlementIncome + sentSettlements;
 
     // Previous month — same clean logic
-    const pm = new Date(selectedMonth);
-    pm.setMonth(pm.getMonth() - 1);
+    const pm = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1);
     const pmKey = getMonthKey(pm);
     const prevTxns = allTransactions.filter((t) => t.date.startsWith(pmKey));
 

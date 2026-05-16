@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '../../components/ui/Modal';
+import { SelectPicker } from '../../components/ui/SelectPicker';
 import { CATEGORIES } from '../../services/categories';
 import useStore from '../../store/useStore';
 
@@ -120,9 +121,12 @@ export function QuickSplitModal({ pendingItem, onClose }) {
       {/* Category */}
       <div className="form-group" style={{ marginBottom: '1rem' }}>
         <label className="form-label">Category</label>
-        <select className="form-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-          {CATEGORIES.expense.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
-        </select>
+        <SelectPicker
+          value={category}
+          onChange={setCategory}
+          options={CATEGORIES.expense.map((c) => ({ value: c.id, label: c.name, emoji: c.emoji }))}
+          placeholder="Select category..."
+        />
       </div>
 
       {/* Group */}
@@ -133,10 +137,12 @@ export function QuickSplitModal({ pendingItem, onClose }) {
             <button type="button" className={`type-btn ${!useExistingGroup ? 'active' : ''}`} onClick={() => setUseExistingGroup(false)}>New Group</button>
           </div>
           {useExistingGroup && (
-            <select className="form-select" value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)}>
-              <option value="">Select a group…</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
+            <SelectPicker
+              value={selectedGroupId}
+              onChange={setSelectedGroupId}
+              options={[{ value: '', label: 'Select a group…', emoji: '📂' }, ...groups.map((g) => ({ value: g.id, label: g.name, emoji: '📂' }))]}
+              placeholder="Select a group…"
+            />
           )}
         </div>
       )}

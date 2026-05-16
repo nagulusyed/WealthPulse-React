@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import useStore from '../../store/useStore';
 import { formatCurrency } from '../../utils/formatters';
@@ -18,6 +18,21 @@ export function GroupsView() {
   const updatePerson = useStore((s) => s.updatePerson);
   const deletePerson = useStore((s) => s.deletePerson);
   const privacyMode  = useStore((s) => s.privacyMode);
+
+  // Fix: derive balances reactively so they update when groupExpenses change
+  const groupBalances = useMemo(() => {
+    const store = useStore.getState();
+    const map = {};
+    groups.forEach((g) => { map[g.id] = store.getPersonBalanceInGroup('self', g.id); });
+    return map;
+  }, [groups, groupExpenses]);
+
+  const peopleBalances = useMemo(() => {
+    const store = useStore.getState();
+    const map = {};
+    people.forEach((p) => { if (p.id !== 'self') map[p.id] = store.getGlobalBalance(p.id); });
+    return map;
+  }, [groups, groupExpenses, people]);
 
   // #11: read openGroupId from navigation state (set by Dashboard)
   const location = useLocation();
@@ -69,8 +84,9 @@ export function GroupsView() {
   }
 
   const otherPeople = people.filter((p) => p.id !== 'self');
-  const getBalance = (personId) => useStore.getState().getGlobalBalance(personId);
-  const getPersonBalance = (selfId, groupId) => useStore.getState().getPersonBalanceInGroup(selfId, groupId);
+  // Fix: use precomputed reactive maps instead of calling getState() during render
+  const getBalance = (personId) => peopleBalances[personId] ?? 0;
+  const getPersonBalance = (_selfId, groupId) => groupBalances[groupId] ?? 0;
 
   const handleCreateGroup = async (e) => {
     e.preventDefault();

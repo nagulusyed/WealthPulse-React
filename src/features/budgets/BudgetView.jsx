@@ -6,7 +6,6 @@ import { isSettlementTxn } from '../../hooks/useYTDSavings';
 import './BudgetView.css';
 
 export function BudgetView() {
-  const transactions    = useStore((s) => s.getMonthlyTransactions());
   const allTransactions = useStore((s) => s.transactions);
   const budgets         = useStore((s) => s.budgets);
   const setBudgetLimit  = useStore((s) => s.setBudgetLimit);
@@ -15,20 +14,34 @@ export function BudgetView() {
   const nextMonth       = useStore((s) => s.nextMonth);
   const privacyMode     = useStore((s) => s.privacyMode);
 
-  const [editingId, setEditingId]   = useState(null);
-  const [editValue, setEditValue]   = useState('');
-  // Fix #10: toggle to show all categories
-  const [showAll, setShowAll]       = useState(false);
+  // Fix: reactive month filtering — same pattern as Dashboard
+  const transactions = useMemo(() => {
+    const key = getMonthKey(selectedMonth);
+    return allTransactions.filter((t) => t.date.startsWith(key));
+  }, [allTransactions, selectedMonth]);
+
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [showAll, setShowAll]     = useState(false);
+
+  // Days remaining in selected month (for context on budget cards)
+  const daysInfo = useMemo(() => {
+    const now = new Date();
+    const yr = selectedMonth.getFullYear();
+    const mo = selectedMonth.getMonth();
+    const isCurrentMonth = yr === now.getFullYear() && mo === now.getMonth();
+    const daysInMonth = new Date(yr, mo + 1, 0).getDate();
+    const daysLeft = isCurrentMonth ? daysInMonth - now.getDate() : null;
+    return { isCurrentMonth, daysLeft, daysInMonth };
+  }, [selectedMonth]);
 
   const prevMonthSpend = useMemo(() => {
-    const pm = new Date(selectedMonth);
-    pm.setMonth(pm.getMonth() - 1);
-    const key = getMonthKey(pm);
-    const prevTxns = allTransactions.filter((t) => t.date.startsWith(key));
+    const d = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1);
+    const key = getMonthKey(d);
     const map = {};
-    prevTxns.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).forEach((t) => {
-      map[t.category] = (map[t.category] || 0) + t.amount;
-    });
+    allTransactions
+      .filter((t) => t.date.startsWith(key) && t.type === 'expense' && !isSettlementTxn(t))
+      .forEach((t) => { map[t.category] = (map[t.category] || 0) + t.amount; });
     return map;
   }, [selectedMonth, allTransactions]);
 
@@ -41,13 +54,16 @@ export function BudgetView() {
       const pct       = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
       const overspend = limit > 0 && spent > limit ? spent - limit : 0;
       const status    = pct >= 100 ? 'danger' : pct >= 70 ? 'warning' : 'safe';
-      const prevSpent    = prevMonthSpend[cat.id] || 0;
-      const vsLastMonth  = prevSpent > 0 ? Math.round(((spent - prevSpent) / prevSpent) * 100) : null;
-      return { ...cat, spent, limit, pct, status, overspend, prevSpent, vsLastMonth };
+      const prevSpent   = prevMonthSpend[cat.id] || 0;
+      const vsLastMonth = prevSpent > 0 ? Math.round(((spent - prevSpent) / prevSpent) * 100) : null;
+      // Daily pace: if current month, how much per day at current burn vs budget
+      const safeDaily = daysInfo.isCurrentMonth && daysInfo.daysLeft > 0 && limit > 0
+        ? Math.round((limit - spent) / daysInfo.daysLeft)
+        : null;
+      return { ...cat, spent, limit, pct, status, overspend, prevSpent, vsLastMonth, safeDaily };
     });
-  }, [transactions, budgets, prevMonthSpend]);
+  }, [transactions, budgets, prevMonthSpend, daysInfo]);
 
-  // Fix #10: active = has spend or has limit set; inactive = neither
   const active   = budgetData.filter((c) => c.spent > 0 || c.limit > 0);
   const inactive = budgetData.filter((c) => c.spent === 0 && c.limit === 0);
   const displayed = showAll ? budgetData : active;
@@ -56,12 +72,21 @@ export function BudgetView() {
   const totalSpent    = budgetData.reduce((s, c) => s + c.spent, 0);
   const overallPct    = totalBudgeted > 0 ? Math.min(Math.round((totalSpent / totalBudgeted) * 100), 100) : 0;
 
-  const startEdit  = (cat) => { setEditingId(cat.id); setEditValue(String(cat.limit || '')); };
-  const commitEdit = (catId) => {
-    const val = parseFloat(editValue);
-    if (!isNaN(val) && val >= 0) setBudgetLimit(catId, val);
-    setEditingId(null); setEditValue('');
+  const startEdit = (cat) => {
+    setEditingId(cat.id);
+    // Show empty string so user can type fresh; placeholder shows current
+    setEditValue(cat.limit > 0 ? String(cat.limit) : '');
   };
+
+  const commitEdit = (catId) => {
+    const raw = editValue.trim();
+    // Allow clearing the budget — empty string or 0 resets to 0
+    const val = raw === '' ? 0 : parseFloat(raw);
+    if (!isNaN(val) && val >= 0) setBudgetLimit(catId, val);
+    setEditingId(null);
+    setEditValue('');
+  };
+
   const handleKeyDown = (e, catId) => {
     if (e.key === 'Enter') commitEdit(catId);
     if (e.key === 'Escape') { setEditingId(null); setEditValue(''); }
@@ -94,8 +119,11 @@ export function BudgetView() {
           <div className="budget-bar-bg">
             <div className={`budget-bar-fill ${overallPct >= 90 ? 'danger' : overallPct >= 70 ? 'warning' : 'safe'}`} style={{ width: `${overallPct}%` }} />
           </div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-            {overallPct}% used · {formatCurrency(Math.max(0, totalBudgeted - totalSpent))} remaining
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+            <span>{overallPct}% used · {formatCurrency(Math.max(0, totalBudgeted - totalSpent))} remaining</span>
+            {daysInfo.isCurrentMonth && daysInfo.daysLeft !== null && (
+              <span>{daysInfo.daysLeft} days left</span>
+            )}
           </div>
         </div>
       )}
@@ -110,12 +138,13 @@ export function BudgetView() {
                 {editingId === cat.id ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>₹</span>
-                    <input type="number" autoFocus value={editValue}
+                    <input
+                      type="number" autoFocus value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       onBlur={() => commitEdit(cat.id)}
                       onKeyDown={(e) => handleKeyDown(e, cat.id)}
-                      placeholder="Set limit"
-                      style={{ width: 90, padding: '0.2rem 0.4rem', background: 'var(--bg-input)', border: '1.5px solid var(--accent-indigo)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '0.82rem', outline: 'none' }}
+                      placeholder={cat.limit > 0 ? String(cat.limit) : 'Set limit (0 to clear)'}
+                      style={{ width: 110, padding: '0.2rem 0.4rem', background: 'var(--bg-input)', border: '1.5px solid var(--accent-indigo)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '0.82rem', outline: 'none' }}
                     />
                     <button onClick={() => commitEdit(cat.id)} style={{ fontSize: '0.72rem', color: 'var(--accent-green)', fontWeight: 700, padding: '0 4px' }}>✓</button>
                   </div>
@@ -129,9 +158,11 @@ export function BudgetView() {
                 )}
               </div>
             </div>
+
             <div className="budget-bar-bg">
               <div className={`budget-bar-fill ${cat.status}`} style={{ width: `${cat.pct}%` }} />
             </div>
+
             <div className="budget-footer">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <span className={`budget-percent ${cat.status}`}>
@@ -139,7 +170,15 @@ export function BudgetView() {
                     ? <span className={blur}>Over by {formatCurrency(cat.overspend)} ⚠️</span>
                     : cat.limit > 0 ? `${cat.pct}% used` : 'No limit'}
                 </span>
-                {cat.vsLastMonth !== null && (
+                {/* Days remaining context — only show for current month with a limit set */}
+                {cat.safeDaily !== null && cat.limit > 0 && cat.overspend === 0 && (
+                  <span className={blur} style={{ fontSize: '0.68rem', color: cat.safeDaily > 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                    {cat.safeDaily > 0
+                      ? `₹${cat.safeDaily}/day safe · ${daysInfo.daysLeft}d left`
+                      : `No budget left · ${daysInfo.daysLeft}d left`}
+                  </span>
+                )}
+                {cat.vsLastMonth !== null && cat.safeDaily === null && (
                   <span className={blur} style={{ fontSize: '0.68rem', color: cat.vsLastMonth > 0 ? 'var(--accent-red)' : 'var(--accent-green)' }}>
                     {cat.vsLastMonth > 0 ? `↑${cat.vsLastMonth}%` : `↓${Math.abs(cat.vsLastMonth)}%`} vs last month
                   </span>
@@ -153,7 +192,7 @@ export function BudgetView() {
         ))}
       </div>
 
-      {/* Fix #10: toggle to show unused categories */}
+      {/* Toggle unused categories — fixed border style */}
       {inactive.length > 0 && (
         <button
           onClick={() => setShowAll((v) => !v)}
@@ -163,7 +202,7 @@ export function BudgetView() {
             fontSize: '0.8rem', fontWeight: 600,
             color: 'var(--text-muted)',
             background: 'var(--bg-card)',
-            border: 'var(--border-card)',
+            border: '1px solid var(--border-card)',
             borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
           }}

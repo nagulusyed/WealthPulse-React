@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from 'react';
 import useStore from '../../store/useStore';
 import { ConfirmModal, Modal } from '../../components/ui/Modal';
+import { SelectPicker } from '../../components/ui/SelectPicker';
 import { storage } from '../../services/storage';
 import { hashPin, hashSecurityAnswer } from '../../services/crypto';
 import { SECURITY_QUESTIONS } from '../../services/categories';
@@ -196,19 +197,23 @@ export function SettingsView({ showToast }) {
             </label>
           </div>
           <div className="settings-item">
-            <div className="settings-item-main">
-              <div className="settings-item-icon">🌙</div>
-              <div className="settings-item-text">
-                <div className="settings-item-title">Theme</div>
-                <div className="settings-item-subtitle">Dark mode (Premium)</div>
+              <div className="settings-item-main">
+                <div className="settings-item-icon">🌙</div>
+                <div className="settings-item-text">
+                  <div className="settings-item-title">Theme</div>
+                  <div className="settings-item-subtitle">Dark mode (Premium)</div>
+                </div>
               </div>
+              <SelectPicker
+                value={theme}
+                onChange={setTheme}
+                options={[
+                  { value: 'dark',  label: 'Dark',  emoji: '🌙' },
+                  { value: 'light', label: 'Light', emoji: '☀️' },
+                  { value: 'auto',  label: 'Auto',  emoji: '📱' },
+                ]}
+              />
             </div>
-            <select className="settings-select" value={theme} onChange={(e) => setTheme(e.target.value)}>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-              <option value="auto">Auto</option>
-            </select>
-          </div>
           {/* Savings Target slider */}
           <div className="settings-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.6rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -393,9 +398,12 @@ export function SettingsView({ showToast }) {
         <form onSubmit={handleSaveSecQ}>
           <div className="form-group">
             <label className="form-label">Security Question</label>
-            <select className="form-select" value={secQIndex} onChange={(e) => setSecQIndex(e.target.value)}>
-              {SECURITY_QUESTIONS.map((q, i) => <option key={i} value={i}>{q}</option>)}
-            </select>
+            <SelectPicker
+              value={String(secQIndex)}
+              onChange={setSecQIndex}
+              options={SECURITY_QUESTIONS.map((q, i) => ({ value: String(i), label: q, emoji: '❓' }))}
+              placeholder="Select a question..."
+            />
           </div>
           <div className="form-group" style={{ marginTop: '1rem' }}>
             <label className="form-label">Your Answer</label>

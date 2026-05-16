@@ -12,9 +12,12 @@ import { hapticLight } from '../../utils/haptics';
 import './Dashboard.css';
 
 export function Dashboard({ onAddTransaction }) {
-  const transactions    = useStore((s) => s.getMonthlyTransactions());
   const allTransactions = useStore((s) => s.transactions);
   const selectedMonth   = useStore((s) => s.selectedMonth);
+  const transactions    = useMemo(() => {
+    const key = getMonthKey(selectedMonth);
+    return allTransactions.filter((t) => t.date.startsWith(key));
+  }, [allTransactions, selectedMonth]);
   const prevMonth       = useStore((s) => s.prevMonth);
   const nextMonth       = useStore((s) => s.nextMonth);
   const privacyMode     = useStore((s) => s.privacyMode);
@@ -40,14 +43,13 @@ export function Dashboard({ onAddTransaction }) {
   }, [transactions]);
 
   const prevMonthData = useMemo(() => {
-    const pm = new Date(selectedMonth);
-    pm.setMonth(pm.getMonth() - 1);
-    const key = getMonthKey(pm);
-    const prevTxns = allTransactions.filter((t) => t.date.startsWith(key));
-    const prevIncome = prevTxns.filter((t) => t.type === 'income' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
-    const prevGross = prevTxns.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
-    const prevSetInc = prevTxns.filter((t) => t.type === 'income' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
-    const prevSetExp = prevTxns.filter((t) => t.type === 'expense' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const d = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1);
+    const key = getMonthKey(d);
+    const prevTxns    = allTransactions.filter((t) => t.date.startsWith(key));
+    const prevIncome  = prevTxns.filter((t) => t.type === 'income'  && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const prevGross   = prevTxns.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const prevSetInc  = prevTxns.filter((t) => t.type === 'income'  &&  isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const prevSetExp  = prevTxns.filter((t) => t.type === 'expense' &&  isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
     const prevExpenses = prevGross - prevSetInc + prevSetExp;
     return { income: prevIncome, expenses: prevExpenses, balance: prevIncome - prevExpenses, hasData: prevTxns.length > 0 };
   }, [selectedMonth, allTransactions]);
@@ -88,7 +90,7 @@ export function Dashboard({ onAddTransaction }) {
     if (sorted.length === 0) return null;
     const [topCatId, topCatAmount] = sorted[0];
     const cat = getCategory('expense', topCatId);
-    const pm = new Date(selectedMonth); pm.setMonth(pm.getMonth() - 1);
+    const pm = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1);
     const pmKey = getMonthKey(pm);
     const prevCatSpend = allTransactions.filter((t) => t.date.startsWith(pmKey) && t.type === 'expense' && t.category === topCatId && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
     if (prevCatSpend > 0) {

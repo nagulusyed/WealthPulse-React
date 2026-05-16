@@ -5,6 +5,7 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 import { TransactionForm } from './TransactionForm';
 import { EmptyState } from '../../components/EmptyState';
 import { hapticLight, hapticHeavy } from '../../utils/haptics';
+import { isSettlementTxn } from '../../hooks/useYTDSavings';
 import './TransactionList.css';
 
 // Fix #7: swipe hint shown only once
@@ -102,7 +103,7 @@ export function TransactionList() {
   const deleteTransaction = useStore((s) => s.deleteTransaction);
   const privacyMode       = useStore((s) => s.privacyMode);
 
-  const [typeFilter, setTypeFilter]         = useState('all');
+  const [typeFilter, setTypeFilter]         = useState('all'); // 'all' | 'income' | 'expense' | 'settlement'
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [search, setSearch]                 = useState('');
   const [editingTxn, setEditingTxn]         = useState(null);
@@ -120,7 +121,11 @@ export function TransactionList() {
 
   const filtered = useMemo(() => {
     let list = [...transactions];
-    if (typeFilter !== 'all') list = list.filter((t) => t.type === typeFilter);
+    if (typeFilter === 'settlement') {
+      list = list.filter((t) => isSettlementTxn(t));
+    } else if (typeFilter !== 'all') {
+      list = list.filter((t) => t.type === typeFilter && !isSettlementTxn(t));
+    }
     if (categoryFilter !== 'all') list = list.filter((t) => t.category === categoryFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -137,6 +142,14 @@ export function TransactionList() {
     const cats = new Set(transactions.map((t) => t.category));
     return [...CATEGORIES.expense, ...CATEGORIES.income].filter((c) => cats.has(c.id));
   }, [transactions]);
+
+  // Running totals for the filtered view
+  const filteredTotals = useMemo(() => {
+    if (typeFilter === 'settlement') return null; // settlements aren't income/expense
+    const income  = filtered.filter((t) => t.type === 'income'  && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const expense = filtered.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    return { income, expense };
+  }, [filtered, typeFilter]);
 
   const blur = privacyMode ? 'private-blur' : '';
 
@@ -181,13 +194,31 @@ export function TransactionList() {
       </div>
 
       <div className="filter-tabs">
-        {['all', 'income', 'expense'].map((f) => (
+        {[['all','All'],['income','Income'],['expense','Expenses'],['settlement','Settlements']].map(([f, label]) => (
           <button key={f} className={`filter-tab ${typeFilter === f ? 'active' : ''}`}
             onClick={() => { setTypeFilter(f); setCategoryFilter('all'); }}>
-            {f === 'all' ? 'All' : f === 'income' ? 'Income' : 'Expenses'}
+            {label}
           </button>
         ))}
       </div>
+
+      {/* Filtered totals summary bar */}
+      {filteredTotals && filtered.length > 0 && (
+        <div style={{ display: 'flex', gap: '1rem', padding: '0.5rem 0.75rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', marginBottom: '0.5rem', fontSize: '0.78rem', alignItems: 'center' }}>
+          {(typeFilter === 'all' || typeFilter === 'income') && filteredTotals.income > 0 && (
+            <span className={blur} style={{ color: 'var(--accent-green)', fontWeight: 600 }}>+{formatCurrency(filteredTotals.income)}</span>
+          )}
+          {(typeFilter === 'all' || typeFilter === 'expense') && filteredTotals.expense > 0 && (
+            <span className={blur} style={{ color: 'var(--accent-red)', fontWeight: 600 }}>−{formatCurrency(filteredTotals.expense)}</span>
+          )}
+          {typeFilter === 'all' && filteredTotals.income > 0 && filteredTotals.expense > 0 && (
+            <span className={blur} style={{ color: filteredTotals.income - filteredTotals.expense >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', fontWeight: 700 }}>
+              Net {filteredTotals.income - filteredTotals.expense >= 0 ? '+' : ''}{formatCurrency(filteredTotals.income - filteredTotals.expense)}
+            </span>
+          )}
+          <span style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}>{filtered.length} txn{filtered.length !== 1 ? 's' : ''} · all time</span>
+        </div>
+      )}
 
       {availableCategories.length > 0 && (
         <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '0.75rem', scrollbarWidth: 'none' }}>
@@ -227,8 +258,14 @@ export function TransactionList() {
                   <div className="txn-details">
                     <div className="txn-desc" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                       <span>{t.description}</span>
+                      {/* Settlement badge */}
+                      {isSettlementTxn(t) && (
+                        <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 5px', borderRadius: 999, background: 'rgba(16,185,129,0.15)', color: 'var(--accent-green)', letterSpacing: '0.03em' }}>
+                          SETTLEMENT
+                        </span>
+                      )}
                       {/* Fix #5: Auto badge */}
-                      {isAuto && (
+                      {isAuto && !isSettlementTxn(t) && (
                         <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 5px', borderRadius: 999, background: 'rgba(99,102,241,0.15)', color: 'var(--accent-indigo)', letterSpacing: '0.03em' }}>
                           AUTO
                         </span>
@@ -241,8 +278,9 @@ export function TransactionList() {
                     <div className="txn-meta">{cat.name} · {formatDate(t.date)}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <div className={`txn-amount ${t.type} ${blur}`}>
-                      {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                    <div className={`txn-amount ${isSettlementTxn(t) ? '' : t.type} ${blur}`}
+                      style={isSettlementTxn(t) ? { color: 'var(--text-muted)' } : {}}>
+                      {isSettlementTxn(t) ? '⇄ ' : t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                     </div>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.4 }}>
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>

@@ -22,6 +22,7 @@ import { SettleUpView } from './features/groups/SettleUpView';
 import { GroupExpenseForm } from './features/groups/GroupExpenseForm';
 import { InsightsView } from './features/insights/InsightsView';
 import { SettingsView } from './features/settings/SettingsView';
+import { FinancePlanningView } from './features/planning/FinancePlanningView';
 import { NotificationsView } from './features/notifications/NotificationsView';
 
 function AppShell() {
@@ -87,6 +88,7 @@ function AppShell() {
           <Route path="/budgets" element={<BudgetView />} />
           <Route path="/groups" element={<GroupsView />} />
           <Route path="/settle-up" element={<SettleUpView />} />
+          <Route path="/planning" element={<FinancePlanningView />} />
           <Route path="/insights" element={<InsightsView />} />
           <Route path="/reports" element={<Navigate to="/insights" replace />} />
           <Route path="/notifications" element={<NotificationsView />} />

@@ -98,13 +98,15 @@ export function RecurringView() {
   const expenses = recurringTxns.filter((r) => r.type === 'expense');
   const incomes  = recurringTxns.filter((r) => r.type === 'income');
 
-  const totalMonthlyExpense = expenses
-    .reduce((s, r) => {
-      if (r.frequency === 'daily')   return s + r.amount * 30;
-      if (r.frequency === 'weekly')  return s + r.amount * 4;
-      if (r.frequency === 'yearly')  return s + r.amount / 12;
-      return s + r.amount;
-    }, 0);
+  const toMonthly = (r) => {
+    if (r.frequency === 'daily')  return r.amount * 30;
+    if (r.frequency === 'weekly') return r.amount * 4;
+    if (r.frequency === 'yearly') return r.amount / 12;
+    return r.amount;
+  };
+
+  const totalMonthlyExpense = expenses.reduce((s, r) => s + toMonthly(r), 0);
+  const totalMonthlyIncome  = incomes.reduce((s, r) => s + toMonthly(r), 0);
 
   const openEdit = (item) => { setEditingItem(item); setShowForm(true); };
 
@@ -121,8 +123,14 @@ export function RecurringView() {
               {freqLabel[item.frequency]}
             </span>
           </div>
-          <div className="txn-meta" style={{ color: isOverdue ? 'var(--accent-red)' : 'var(--text-muted)' }}>
-            {isOverdue ? '⚠️ Overdue · ' : 'Next: '}{item.nextDate || '—'}
+          <div className="txn-meta" style={{ color: isOverdue ? 'var(--accent-red)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <span>{isOverdue ? '⚠️ Overdue · ' : 'Next: '}{item.nextDate || '—'}</span>
+            {isOverdue && (
+              <button
+                onClick={(e) => { e.stopPropagation(); useStore.getState().applyDueRecurring(); }}
+                style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-indigo)', padding: '1px 6px', borderRadius: 999, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer' }}
+              >Apply now</button>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
@@ -150,11 +158,17 @@ export function RecurringView() {
 
       {/* Summary */}
       {recurringTxns.length > 0 && (
-        <div className="card" style={{ marginBottom: '1.25rem', padding: '1rem', display: 'flex', gap: '1.5rem' }}>
+        <div className="card" style={{ marginBottom: '1.25rem', padding: '1rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Monthly Expenses</div>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-red)', marginTop: '2px' }}>{formatCurrency(Math.round(totalMonthlyExpense))}</div>
           </div>
+          {totalMonthlyIncome > 0 && (
+            <div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Monthly Income</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-green)', marginTop: '2px' }}>{formatCurrency(Math.round(totalMonthlyIncome))}</div>
+            </div>
+          )}
           <div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active</div>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, marginTop: '2px' }}>{recurringTxns.length}</div>

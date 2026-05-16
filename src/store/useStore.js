@@ -61,14 +61,17 @@ const useStore = create((set, get) => ({
 
   // ── Month Navigation ──
   selectedMonth: new Date(),
-  prevMonth: () => set((s) => { const d = new Date(s.selectedMonth); d.setMonth(d.getMonth() - 1); return { selectedMonth: d }; }),
-  // Fix #12: block navigating past current month
+  prevMonth: () => set((s) => {
+    const d = new Date(s.selectedMonth.getFullYear(), s.selectedMonth.getMonth() - 1, 1);
+    return { selectedMonth: d };
+  }),
   nextMonth: () => set((s) => {
     const now = new Date();
-    const cur = new Date(s.selectedMonth);
-    if (cur.getFullYear() >= now.getFullYear() && cur.getMonth() >= now.getMonth()) return s;
-    cur.setMonth(cur.getMonth() + 1);
-    return { selectedMonth: cur };
+    const yr = s.selectedMonth.getFullYear();
+    const mo = s.selectedMonth.getMonth();
+    // Block navigating past current month
+    if (yr > now.getFullYear() || (yr === now.getFullYear() && mo >= now.getMonth())) return s;
+    return { selectedMonth: new Date(yr, mo + 1, 1) };
   }),
 
   // ── Transactions ──
@@ -335,22 +338,124 @@ const useStore = create((set, get) => ({
     if (linkedTxnId) get().deleteTransaction(linkedTxnId);
   },
 
+  // ── Savings Goals ──
+  goals: storage.getGoals(),
+  addGoal: (data) => {
+    const goal = { ...data, id: generateId('goal_'), savedAmount: data.savedAmount || 0, createdAt: new Date().toISOString() };
+    const updated = [...get().goals, goal];
+    storage.saveGoals(updated);
+    set({ goals: updated });
+    return goal;
+  },
+  updateGoal: (id, data) => {
+    const updated = get().goals.map((g) => g.id === id ? { ...g, ...data } : g);
+    storage.saveGoals(updated);
+    set({ goals: updated });
+  },
+  deleteGoal: (id) => {
+    const updated = get().goals.filter((g) => g.id !== id);
+    storage.saveGoals(updated);
+    set({ goals: updated });
+  },
+  contributeToGoal: (id, amount) => {
+    const updated = get().goals.map((g) =>
+      g.id === id ? { ...g, savedAmount: Math.min(g.savedAmount + amount, g.targetAmount) } : g
+    );
+    storage.saveGoals(updated);
+    set({ goals: updated });
+  },
+
+  // ── EMI Tracker ──
+  emis: storage.getEmis(),
+  addEmi: (data) => {
+    const emi = { ...data, id: generateId('emi_'), prepayments: [], createdAt: new Date().toISOString() };
+    const updated = [...get().emis, emi];
+    storage.saveEmis(updated);
+    set({ emis: updated });
+    return emi;
+  },
+  updateEmi: (id, data) => {
+    const updated = get().emis.map((e) => e.id === id ? { ...e, ...data } : e);
+    storage.saveEmis(updated);
+    set({ emis: updated });
+  },
+  deleteEmi: (id) => {
+    const updated = get().emis.filter((e) => e.id !== id);
+    storage.saveEmis(updated);
+    set({ emis: updated });
+  },
+  addPrepayment: (emiId, amount, date) => {
+    const updated = get().emis.map((e) => {
+      if (e.id !== emiId) return e;
+      const prepayments = [...(e.prepayments || []), { id: generateId('pre_'), amount, date }];
+      return { ...e, prepayments };
+    });
+    storage.saveEmis(updated);
+    set({ emis: updated });
+  },
+
+  // ── Net Worth ──
+  netWorthEntries: storage.getNetWorth(),
+  netWorthHistory: storage.getNetWorthHistory(),
+  addNetWorthEntry: (data) => {
+    const entry = { ...data, id: generateId('nw_'), lastUpdated: new Date().toISOString().split('T')[0] };
+    const updated = [...get().netWorthEntries, entry];
+    storage.saveNetWorth(updated);
+    set({ netWorthEntries: updated });
+    get().snapshotNetWorth();
+    return entry;
+  },
+  updateNetWorthEntry: (id, data) => {
+    const updated = get().netWorthEntries.map((e) =>
+      e.id === id ? { ...e, ...data, lastUpdated: new Date().toISOString().split('T')[0] } : e
+    );
+    storage.saveNetWorth(updated);
+    set({ netWorthEntries: updated });
+    get().snapshotNetWorth();
+  },
+  deleteNetWorthEntry: (id) => {
+    const updated = get().netWorthEntries.filter((e) => e.id !== id);
+    storage.saveNetWorth(updated);
+    set({ netWorthEntries: updated });
+    get().snapshotNetWorth();
+  },
+  snapshotNetWorth: () => {
+    const entries = get().netWorthEntries;
+    const totalAssets = entries.filter((e) => e.type === 'asset').reduce((s, e) => s + e.amount, 0);
+    const totalLiabilities = entries.filter((e) => e.type === 'liability').reduce((s, e) => s + e.amount, 0);
+    const netWorth = totalAssets - totalLiabilities;
+    const month = getMonthKey(new Date());
+    const history = get().netWorthHistory.filter((h) => h.month !== month);
+    const updated = [...history, { month, netWorth, assets: totalAssets, liabilities: totalLiabilities }]
+      .sort((a, b) => a.month.localeCompare(b.month)).slice(-24);
+    storage.saveNetWorthHistory(updated);
+    set({ netWorthHistory: updated });
+  },
+
   // ── Export / Import ──
-  exportData: () => ({ transactions: get().transactions, budgets: get().budgets, people: get().people, groups: get().groups, groupExpenses: get().groupExpenses, recurringTxns: get().recurringTxns, exportedAt: new Date().toISOString(), version: '3.2.0' }),
+  exportData: () => ({ transactions: get().transactions, budgets: get().budgets, people: get().people, groups: get().groups, groupExpenses: get().groupExpenses, recurringTxns: get().recurringTxns, goals: get().goals, emis: get().emis, netWorthEntries: get().netWorthEntries, netWorthHistory: get().netWorthHistory, exportedAt: new Date().toISOString(), version: '3.3.0' }),
   importData: (data) => {
-    if (data.transactions) storage.saveTransactions(data.transactions);
-    if (data.budgets) storage.saveBudgets(data.budgets);
-    if (data.people) storage.savePeople(data.people);
-    if (data.groups) storage.saveGroups(data.groups);
-    if (data.groupExpenses) storage.saveGroupExpenses(data.groupExpenses);
-    if (data.recurringTxns) storage.saveRecurring(data.recurringTxns);
+    if (data.transactions)     storage.saveTransactions(data.transactions);
+    if (data.budgets)          storage.saveBudgets(data.budgets);
+    if (data.people)           storage.savePeople(data.people);
+    if (data.groups)           storage.saveGroups(data.groups);
+    if (data.groupExpenses)    storage.saveGroupExpenses(data.groupExpenses);
+    if (data.recurringTxns)    storage.saveRecurring(data.recurringTxns);
+    if (data.goals)            storage.saveGoals(data.goals);
+    if (data.emis)             storage.saveEmis(data.emis);
+    if (data.netWorthEntries)  storage.saveNetWorth(data.netWorthEntries);
+    if (data.netWorthHistory)  storage.saveNetWorthHistory(data.netWorthHistory);
     set({
-      transactions: data.transactions || get().transactions,
-      budgets: data.budgets || get().budgets,
-      people: data.people || get().people,
-      groups: data.groups || get().groups,
-      groupExpenses: data.groupExpenses || get().groupExpenses,
-      recurringTxns: data.recurringTxns || get().recurringTxns,
+      transactions:     data.transactions     || get().transactions,
+      budgets:          data.budgets          || get().budgets,
+      people:           data.people           || get().people,
+      groups:           data.groups           || get().groups,
+      groupExpenses:    data.groupExpenses    || get().groupExpenses,
+      recurringTxns:    data.recurringTxns    || get().recurringTxns,
+      goals:            data.goals            || get().goals,
+      emis:             data.emis             || get().emis,
+      netWorthEntries:  data.netWorthEntries  || get().netWorthEntries,
+      netWorthHistory:  data.netWorthHistory  || get().netWorthHistory,
     });
   },
 
@@ -358,17 +463,11 @@ const useStore = create((set, get) => ({
   resetAll: () => {
     storage.resetAll();
     set({
-      transactions: [],
-      budgets: DEFAULT_BUDGETS,
+      transactions: [], budgets: DEFAULT_BUDGETS,
       people: [{ id: 'self', name: 'You', initials: 'You', color: '#8b5cf6', createdAt: new Date().toISOString() }],
-      groups: [],
-      groupExpenses: [],
-      recurringTxns: [],
-      pendingSmsTransactions: [],
-      payeeMemory: {},
-      privacyMode: false,
-      isLocked: true,
-      savingsTarget: 30,
+      groups: [], groupExpenses: [], recurringTxns: [], pendingSmsTransactions: [],
+      payeeMemory: {}, privacyMode: false, isLocked: true, savingsTarget: 30,
+      goals: [], emis: [], netWorthEntries: [], netWorthHistory: [],
     });
   },
 

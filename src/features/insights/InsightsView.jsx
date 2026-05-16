@@ -4,6 +4,7 @@ import { formatCurrency, formatMonthLabel, getMonthKey } from '../../utils/forma
 import { getCategory } from '../../services/categories';
 import useStore from '../../store/useStore';
 import { isSettlementTxn } from '../../hooks/useYTDSavings';
+import { useSwipeTabs } from '../../hooks/useSwipeTabs';
 
 function TabPill({ label, emoji, active, onClick, badge }) {
   return (
@@ -28,57 +29,61 @@ function InsightCard({ children, accent, style = {} }) {
 }
 
 // ── Tab 1: Monthly Report ──────────────────────────────────────
-function MonthlyTab({ privacyMode }) {
+// Fix: receives transactions reactively from parent (via useInsights hook)
+function MonthlyTab({ transactions, privacyMode }) {
   const blur = privacyMode ? 'private-blur' : '';
-  const transactions = useStore((s) => s.getMonthlyTransactions());
-  const selectedMonth = useStore((s) => s.selectedMonth);
+  const selectedMonth   = useStore((s) => s.selectedMonth);
   const allTransactions = useStore((s) => s.transactions);
-  const budgets = useStore((s) => s.budgets);
+  const budgets         = useStore((s) => s.budgets);
 
   const report = useMemo(() => {
-    const income = transactions.filter((t) => t.type === 'income' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
-    const grossExpense = transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
-    const settlementIncome = transactions.filter((t) => t.type === 'income' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
-    const sentSettlements = transactions.filter((t) => t.type === 'expense' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const income           = transactions.filter((t) => t.type === 'income'  && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const grossExpense     = transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const settlementIncome = transactions.filter((t) => t.type === 'income'  &&  isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const sentSettlements  = transactions.filter((t) => t.type === 'expense' &&  isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
     const totalSpent = grossExpense - settlementIncome + sentSettlements;
-    const savings = income - totalSpent;
+    const savings    = income - totalSpent;
     const savingsPct = income > 0 ? Math.round((savings / income) * 100) : 0;
 
-    const pm = new Date(selectedMonth);
-    pm.setMonth(pm.getMonth() - 1);
-    const pmKey = getMonthKey(pm);
-    const prevTxns = allTransactions.filter((t) => t.date.startsWith(pmKey));
-    const prevGross = prevTxns.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
-    const prevRecSet = prevTxns.filter((t) => t.type === 'income' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
-    const prevSentSet = prevTxns.filter((t) => t.type === 'expense' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
-    const prevSpent = prevGross - prevRecSet + prevSentSet;
+    const pmDate  = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1);
+    const pmKey   = getMonthKey(pmDate);
+    const prevTxns    = allTransactions.filter((t) => t.date.startsWith(pmKey));
+    const prevGross   = prevTxns.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const prevRecSet  = prevTxns.filter((t) => t.type === 'income'  &&  isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const prevSentSet = prevTxns.filter((t) => t.type === 'expense' &&  isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const prevSpent   = prevGross - prevRecSet + prevSentSet;
     const diff = totalSpent - prevSpent;
-    const pct = prevSpent > 0 ? Math.round((diff / prevSpent) * 100) : 0;
+    const pct  = prevSpent > 0 ? Math.round((diff / prevSpent) * 100) : 0;
+
     const daysInMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
-    const avgDaily = totalSpent / daysInMonth;
+    const avgDaily    = totalSpent / daysInMonth;
 
     const catTotals = {};
-    transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).forEach((t) => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
+    transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t))
+      .forEach((t) => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
+
     const categories = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).map(([catId, amount]) => {
       const cat = getCategory('expense', catId);
-      const limit = budgets[catId] || 0;
+      const limit     = budgets[catId] || 0;
       const budgetPct = limit > 0 ? Math.min(Math.round((amount / limit) * 100), 100) : 0;
-      const spendPct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
+      const spendPct  = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
       return { ...cat, amount, budgetPct, spendPct, limit };
     });
 
     return { totalSpent, totalIncome: income, savings, savingsPct, diff, pct, avgDaily, categories, topCat: categories[0] };
   }, [transactions, selectedMonth, allTransactions, budgets]);
 
-  if (transactions.length === 0) return <EmptyState emoji="📊" message="No transactions this month. Start adding expenses to see your monthly report." />;
+  if (transactions.filter((t) => !isSettlementTxn(t)).length === 0) {
+    return <EmptyState emoji="📊" message="No transactions this month. Start adding expenses to see your monthly report." />;
+  }
 
   return (
     <div>
       <div style={{ display:'flex', gap:'0.6rem', marginBottom:'0.85rem', flexWrap:'wrap' }}>
         {[
-          { label:'Total Spent', value: formatCurrency(report.totalSpent), color:'var(--accent-red)', sub: `${report.diff > 0 ? '↑' : '↓'} ${Math.abs(report.pct)}% vs last month`, subColor: report.diff > 0 ? 'var(--accent-red)' : 'var(--accent-green)' },
-          { label:'Income', value: formatCurrency(report.totalIncome), color:'var(--accent-green)', sub:`Avg. ${formatCurrency(Math.round(report.avgDaily))}/day`, subColor:'var(--text-muted)' },
-          { label:'Saved', value: formatCurrency(Math.abs(report.savings)), color: report.savings >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', sub:`${report.savingsPct}% of income`, subColor:'var(--text-muted)' },
+          { label:'Total Spent',  value: formatCurrency(report.totalSpent),        color:'var(--accent-red)',   sub:`${report.diff > 0 ? '↑' : '↓'} ${Math.abs(report.pct)}% vs last month`, subColor: report.diff > 0 ? 'var(--accent-red)' : 'var(--accent-green)' },
+          { label:'Income',       value: formatCurrency(report.totalIncome),        color:'var(--accent-green)', sub:`Avg. ${formatCurrency(Math.round(report.avgDaily))}/day`,                 subColor:'var(--text-muted)' },
+          { label:'Saved',        value: formatCurrency(Math.abs(report.savings)),  color: report.savings >= 0 ? 'var(--accent-green)' : 'var(--accent-red)', sub:`${report.savingsPct}% of income`, subColor:'var(--text-muted)' },
         ].map((s) => (
           <div key={s.label} className="card" style={{ flex:'1 1 0', minWidth:0 }}>
             <div style={{ fontSize:'0.7rem', color:'var(--text-muted)' }}>{s.label}</div>
@@ -156,7 +161,7 @@ function BurnRateTab({ burnRate, privacyMode }) {
   const blur = privacyMode ? 'private-blur' : '';
   if (!burnRate) return <EmptyState emoji="📈" message="Burn rate is only available for the current month with at least 3 days of data." />;
   const { spentSoFar, dailyBurn, projectedTotal, totalBudget, budgetLeft, safeDaily, daysLeft, dayOfMonth, daysInMonth, exhaustDate, isOnTrack, overageAmount } = burnRate;
-  const progressPct = Math.min(Math.round((spentSoFar / totalBudget) * 100), 100);
+  const progressPct  = Math.min(Math.round((spentSoFar / totalBudget) * 100), 100);
   const projectedPct = Math.min(Math.round((projectedTotal / totalBudget) * 100), 100);
   const exhaustDateStr = exhaustDate ? exhaustDate.toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : null;
   return (
@@ -281,27 +286,45 @@ function SubscriptionsTab({ subscriptions, yearlyTotal, privacyMode }) {
 // ── Main InsightsView ─────────────────────────────────────────
 export function InsightsView() {
   const [activeTab, setActiveTab] = useState('monthly');
-  const privacyMode = useStore((s) => s.privacyMode);
+  const [slideDir, setSlideDir]   = useState(null);
+  const privacyMode   = useStore((s) => s.privacyMode);
   const selectedMonth = useStore((s) => s.selectedMonth);
-  // Fix #6: wire up month navigation
-  const prevMonth = useStore((s) => s.prevMonth);
-  const nextMonth = useStore((s) => s.nextMonth);
+  const prevMonth     = useStore((s) => s.prevMonth);
+  const nextMonth     = useStore((s) => s.nextMonth);
 
-  const { vendors, burnRate, anomalies, subscriptions, subscriptionYearlyTotal, hasData } = useInsights();
+  const { transactions, vendors, burnRate, anomalies, subscriptions, subscriptionYearlyTotal, hasData } = useInsights();
 
   const tabs = [
-    { id:'monthly',       label:'Monthly',       emoji:'📊', badge:0 },
-    { id:'vendors',       label:'Vendors',        emoji:'🔍', badge:0 },
-    { id:'burnrate',      label:'Forecast',       emoji:'📈', badge:0 },
-    { id:'anomalies',     label:'Alerts',         emoji:'📉', badge:anomalies.length },
-    { id:'subscriptions', label:'Subscriptions',  emoji:'📆', badge:subscriptions.length },
+    { id:'monthly',       label:'Monthly',      emoji:'📊', badge:0 },
+    { id:'vendors',       label:'Vendors',       emoji:'🔍', badge:0 },
+    { id:'burnrate',      label:'Forecast',      emoji:'📈', badge:0 },
+    { id:'anomalies',     label:'Alerts',        emoji:'📉', badge:anomalies.length },
+    { id:'subscriptions', label:'Subscriptions', emoji:'📆', badge:subscriptions.length },
   ];
+  const tabIds  = tabs.map((t) => t.id);
+
+  const switchTab = (newId) => {
+    if (newId === activeTab) return;
+    const dir = tabIds.indexOf(newId) > tabIds.indexOf(activeTab) ? 'left' : 'right';
+    setSlideDir(dir);
+    setActiveTab(newId);
+    setTimeout(() => setSlideDir(null), 300);
+  };
+
+  const swipeRef = useSwipeTabs(tabIds, activeTab, switchTab);
+
+  const tabContent = {
+    monthly:       <MonthlyTab transactions={transactions} privacyMode={privacyMode} />,
+    vendors:       <VendorTab vendors={vendors} privacyMode={privacyMode} />,
+    burnrate:      <BurnRateTab burnRate={burnRate} privacyMode={privacyMode} />,
+    anomalies:     <AnomalyTab anomalies={anomalies} privacyMode={privacyMode} />,
+    subscriptions: <SubscriptionsTab subscriptions={subscriptions} yearlyTotal={subscriptionYearlyTotal} privacyMode={privacyMode} />,
+  };
 
   return (
     <div className="animate-in" style={{ maxWidth:700, margin:'0 auto' }}>
       <h2 className="view-title">Reports & Insights</h2>
 
-      {/* Fix #6: Month navigation — same as Dashboard and BudgetView */}
       <div className="month-nav" style={{ marginBottom: '1rem' }}>
         <button className="month-arrow" onClick={prevMonth}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6"/></svg>
@@ -321,13 +344,24 @@ export function InsightsView() {
       ) : (
         <>
           <div style={{ display:'flex', gap:'0.45rem', overflowX:'auto', paddingBottom:'0.5rem', marginBottom:'1rem', scrollbarWidth:'none', msOverflowStyle:'none', WebkitOverflowScrolling:'touch' }}>
-            {tabs.map((tab) => <TabPill key={tab.id} label={tab.label} emoji={tab.emoji} active={activeTab === tab.id} badge={tab.badge} onClick={() => setActiveTab(tab.id)} />)}
+            {tabs.map((tab) => <TabPill key={tab.id} label={tab.label} emoji={tab.emoji} active={activeTab === tab.id} badge={tab.badge} onClick={() => switchTab(tab.id)} />)}
           </div>
-          {activeTab === 'monthly'       && <MonthlyTab privacyMode={privacyMode} />}
-          {activeTab === 'vendors'       && <VendorTab vendors={vendors} privacyMode={privacyMode} />}
-          {activeTab === 'burnrate'      && <BurnRateTab burnRate={burnRate} privacyMode={privacyMode} />}
-          {activeTab === 'anomalies'     && <AnomalyTab anomalies={anomalies} privacyMode={privacyMode} />}
-          {activeTab === 'subscriptions' && <SubscriptionsTab subscriptions={subscriptions} yearlyTotal={subscriptionYearlyTotal} privacyMode={privacyMode} />}
+          {/* Swipeable content area */}
+          <div ref={swipeRef} style={{ overflow: 'hidden', touchAction: 'pan-y' }}>
+            <div style={{ animation: slideDir ? `slideIn${slideDir === 'left' ? 'Left' : 'Right'} 0.28s cubic-bezier(0.25,0.46,0.45,0.94) both` : 'none' }}>
+              {tabContent[activeTab]}
+            </div>
+          </div>
+          <style>{`
+            @keyframes slideInLeft {
+              from { transform: translateX(40px); opacity: 0; }
+              to   { transform: translateX(0);   opacity: 1; }
+            }
+            @keyframes slideInRight {
+              from { transform: translateX(-40px); opacity: 0; }
+              to   { transform: translateX(0);     opacity: 1; }
+            }
+          `}</style>
         </>
       )}
     </div>

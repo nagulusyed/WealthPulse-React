@@ -13,8 +13,10 @@ function resolveType(item) {
 export function PendingSmsCard({ item }) {
   const acceptPendingSmsAsExpense = useStore((s) => s.acceptPendingSmsAsExpense);
   const acceptPendingSmsAsIncome  = useStore((s) => s.acceptPendingSmsAsIncome);
+  const addTransaction            = useStore((s) => s.addTransaction);
   const dismissPendingSms         = useStore((s) => s.dismissPendingSms);
   const getCategoryForPayee       = useStore((s) => s.getCategoryForPayee);
+  const rememberPayeeCategory     = useStore((s) => s.rememberPayeeCategory);
 
   const resolvedType = resolveType(item);
   const isCredit = resolvedType === 'credit';
@@ -31,12 +33,27 @@ export function PendingSmsCard({ item }) {
     return isCredit ? 'other_inc' : 'other_exp';
   });
 
-  // Fix #4: use SelectPicker options format
   const categoryOptions = categoryList.map((c) => ({ value: c.id, label: c.name, emoji: c.emoji }));
 
   const handleAccept = () => {
     if (isCredit) acceptPendingSmsAsIncome(item.id, selectedCategory);
     else acceptPendingSmsAsExpense(item.id, selectedCategory);
+  };
+
+  // Mark as settlement receipt — adds as income with isSettlement:true
+  // so it shows as ⇄ in TransactionList and is excluded from income totals
+  const handleSettlement = () => {
+    rememberPayeeCategory(item.payee, 'other_inc');
+    addTransaction({
+      type: 'income',
+      amount: item.amount,
+      category: 'other_inc',
+      date: item.date,
+      description: item.payee,
+      notes: `Settlement (via SMS)`,
+      isSettlement: true,
+    });
+    dismissPendingSms(item.id);
   };
 
   return (
@@ -67,23 +84,63 @@ export function PendingSmsCard({ item }) {
           </div>
         </div>
 
-        {/* Fix #4: SelectPicker for category */}
-        <div style={{ marginBottom: '0.75rem' }}>
-          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem', display: 'block' }}>Category</label>
-          <SelectPicker
-            value={selectedCategory}
-            onChange={setSelectedCategory}
-            options={categoryOptions}
-            placeholder="Select category..."
-          />
-        </div>
+        {/* Category — only shown for non-settlement income */}
+        {(!isCredit) && (
+          <div style={{ marginBottom: '0.75rem' }}>
+            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem', display: 'block' }}>Category</label>
+            <SelectPicker
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              options={categoryOptions}
+              placeholder="Select category..."
+            />
+          </div>
+        )}
+
+        {/* For credit — show type choice first: Income or Settlement */}
+        {isCredit && (
+          <div style={{ marginBottom: '0.75rem', padding: '0.6rem 0.75rem', background: 'rgba(99,102,241,0.06)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(99,102,241,0.15)', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            💡 Is this a friend paying you back, or actual income?
+          </div>
+        )}
+
+        {/* Category picker for income (not settlement) */}
+        {isCredit && (
+          <div style={{ marginBottom: '0.75rem' }}>
+            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem', display: 'block' }}>Category (if income)</label>
+            <SelectPicker
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              options={categoryOptions}
+              placeholder="Select category..."
+            />
+          </div>
+        )}
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button className="btn btn-primary" style={{ flex: 1, fontSize: '0.82rem', padding: '0.5rem' }} onClick={handleAccept}>
-            ✓ Add to {isCredit ? 'Income' : 'Expenses'}
-          </button>
-          {!isCredit && (
+        {isCredit ? (
+          // Two clear options for credit
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <button
+              className="btn btn-primary"
+              style={{ fontSize: '0.82rem', padding: '0.55rem' }}
+              onClick={handleAccept}
+            >
+              ✓ Add as Income
+            </button>
+            <button
+              className="btn btn-ghost"
+              style={{ fontSize: '0.82rem', padding: '0.55rem', border: '1px solid var(--accent-green)', color: 'var(--accent-green)' }}
+              onClick={handleSettlement}
+            >
+              ⇄ Mark as Settlement (friend paid me back)
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn btn-primary" style={{ flex: 1, fontSize: '0.82rem', padding: '0.5rem' }} onClick={handleAccept}>
+              ✓ Add to Expenses
+            </button>
             <button
               className="btn btn-ghost"
               style={{ flex: 1, fontSize: '0.82rem', padding: '0.5rem', border: '1px solid var(--accent-indigo)', color: 'var(--accent-indigo)' }}
@@ -91,8 +148,8 @@ export function PendingSmsCard({ item }) {
             >
               ⚡ Split
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {showSplitModal && (

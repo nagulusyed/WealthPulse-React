@@ -27,7 +27,11 @@ function computeVendorInsights(transactions, totalIncome) {
     .filter((v) => v.count >= 2 || v.total >= 500)
     .sort((a, b) => b.total - a.total)
     .slice(0, 5);
-  return sorted.map((v) => ({ ...v, pctOfIncome: totalIncome > 0 ? Math.round((v.total / totalIncome) * 100) : null, cat: getCategory('expense', v.category) }));
+  return sorted.map((v) => ({
+    ...v,
+    pctOfIncome: totalIncome > 0 ? Math.round((v.total / totalIncome) * 100) : null,
+    cat: getCategory('expense', v.category),
+  }));
 }
 
 function computeBurnRate(transactions, selectedMonth, budgets) {
@@ -51,18 +55,24 @@ function computeBurnRate(transactions, selectedMonth, budgets) {
   const exhaustDate = daysUntilBudgetExhausted !== null ? new Date(now.getTime() + daysUntilBudgetExhausted * 86400000) : null;
   const isOnTrack = projectedTotal <= totalBudget;
 
-  return { spentSoFar, dailyBurn: Math.round(dailyBurn), projectedTotal: Math.round(projectedTotal), totalBudget, budgetLeft: Math.round(budgetLeft), safeDaily: Math.round(safeDaily), daysLeft, dayOfMonth, daysInMonth, exhaustDate, isOnTrack, overageAmount: projectedTotal > totalBudget ? Math.round(projectedTotal - totalBudget) : 0 };
+  return {
+    spentSoFar, dailyBurn: Math.round(dailyBurn),
+    projectedTotal: Math.round(projectedTotal), totalBudget,
+    budgetLeft: Math.round(budgetLeft), safeDaily: Math.round(safeDaily),
+    daysLeft, dayOfMonth, daysInMonth, exhaustDate, isOnTrack,
+    overageAmount: projectedTotal > totalBudget ? Math.round(projectedTotal - totalBudget) : 0,
+  };
 }
 
 function computeAnomalies(currentTxns, allTransactions, selectedMonth) {
   const currentCatTotals = {};
-  currentTxns.filter((t) => t.type === 'expense' && !isSettlementTxn(t))
+  currentTxns
+    .filter((t) => t.type === 'expense' && !isSettlementTxn(t))
     .forEach((t) => { currentCatTotals[t.category] = (currentCatTotals[t.category] || 0) + t.amount; });
 
   const historyMonths = [];
   for (let i = 1; i <= 3; i++) {
-    const d = new Date(selectedMonth);
-    d.setMonth(d.getMonth() - i);
+    const d = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - i, 1);
     historyMonths.push(getMonthKey(d));
   }
 
@@ -130,24 +140,35 @@ function computeSubscriptions(allTransactions) {
     if (avgGap > 45) return;
     const lastDate = sortedDates[sortedDates.length - 1];
     if ((new Date() - lastDate) / 86400000 > avgGap + 10) return;
-    subscriptions.push({ key, displayName: txns[0].description || key, amount: median, frequency: avgGap <= 10 ? 'weekly' : avgGap <= 20 ? 'bi-weekly' : 'monthly', occurrences: txns.length, lastDate: txns[0].date, yearlyEstimate: Math.round(median * (avgGap <= 10 ? 52 : avgGap <= 20 ? 26 : 12)), cat: getCategory('expense', txns[0].category) });
+    subscriptions.push({
+      key, displayName: txns[0].description || key, amount: median,
+      frequency: avgGap <= 10 ? 'weekly' : avgGap <= 20 ? 'bi-weekly' : 'monthly',
+      occurrences: txns.length, lastDate: txns[0].date,
+      yearlyEstimate: Math.round(median * (avgGap <= 10 ? 52 : avgGap <= 20 ? 26 : 12)),
+      cat: getCategory('expense', txns[0].category),
+    });
   });
 
   return subscriptions.sort((a, b) => b.amount - a.amount);
 }
 
 export function useInsights() {
-  const transactions = useStore((s) => s.getMonthlyTransactions());
   const allTransactions = useStore((s) => s.transactions);
-  const selectedMonth = useStore((s) => s.selectedMonth);
-  const budgets = useStore((s) => s.budgets);
+  const selectedMonth   = useStore((s) => s.selectedMonth);
+  const budgets         = useStore((s) => s.budgets);
 
-  const totalIncome = useMemo(() => transactions.filter((t) => t.type === 'income' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0), [transactions]);
-  const vendors = useMemo(() => computeVendorInsights(allTransactions, totalIncome), [allTransactions, totalIncome]);
-  const burnRate = useMemo(() => computeBurnRate(transactions, selectedMonth, budgets), [transactions, selectedMonth, budgets]);
-  const anomalies = useMemo(() => computeAnomalies(transactions, allTransactions, selectedMonth), [transactions, allTransactions, selectedMonth]);
-  const subscriptions = useMemo(() => computeSubscriptions(allTransactions), [allTransactions]);
+  // Fix: reactive month filtering — same pattern as Dashboard
+  const transactions = useMemo(() => {
+    const key = getMonthKey(selectedMonth);
+    return allTransactions.filter((t) => t.date.startsWith(key));
+  }, [allTransactions, selectedMonth]);
+
+  const totalIncome     = useMemo(() => transactions.filter((t) => t.type === 'income' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0), [transactions]);
+  const vendors         = useMemo(() => computeVendorInsights(allTransactions, totalIncome), [allTransactions, totalIncome]);
+  const burnRate        = useMemo(() => computeBurnRate(transactions, selectedMonth, budgets), [transactions, selectedMonth, budgets]);
+  const anomalies       = useMemo(() => computeAnomalies(transactions, allTransactions, selectedMonth), [transactions, allTransactions, selectedMonth]);
+  const subscriptions   = useMemo(() => computeSubscriptions(allTransactions), [allTransactions]);
   const subscriptionYearlyTotal = subscriptions.reduce((s, sub) => s + sub.yearlyEstimate, 0);
 
-  return { vendors, burnRate, anomalies, subscriptions, subscriptionYearlyTotal, hasData: allTransactions.length > 0 };
+  return { transactions, vendors, burnRate, anomalies, subscriptions, subscriptionYearlyTotal, hasData: allTransactions.length > 0 };
 }
