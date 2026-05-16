@@ -15,6 +15,7 @@ import { Toast } from './components/ui/Toast';
 import { Dashboard } from './features/dashboard/Dashboard';
 import { TransactionList } from './features/transactions/TransactionList';
 import { TransactionForm } from './features/transactions/TransactionForm';
+import { RecurringView } from './features/transactions/RecurringView';
 import { BudgetView } from './features/budgets/BudgetView';
 import { GroupsView } from './features/groups/GroupsView';
 import { SettleUpView } from './features/groups/SettleUpView';
@@ -29,36 +30,25 @@ function AppShell() {
   const { toast, showToast } = useToast();
   const navigate = useNavigate();
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [fabOpen, setFabOpen] = useState(false);
-  const [showTxnForm, setShowTxnForm] = useState(false);
-  const [txnFormType, setTxnFormType] = useState('expense');
-  const [txnFormData, setTxnFormData] = useState(null);
+  const [sidebarOpen, setSidebarOpen]               = useState(false);
+  const [fabOpen, setFabOpen]                       = useState(false);
+  const [showTxnForm, setShowTxnForm]               = useState(false);
+  const [txnFormType, setTxnFormType]               = useState('expense');
+  const [txnFormData, setTxnFormData]               = useState(null);
   const [showGroupExpenseForm, setShowGroupExpenseForm] = useState(false);
 
-  // ── Core hooks ──
   useSmsListener();
-  useAlerts(); // watches state → fires Android push notifications
+  useAlerts();
 
   useEffect(() => {
     useStore.getState().initBgService();
     useStore.getState().checkBiometricAvailability();
-
-    const handler = (e) => {
-      if (fabOpen && !e.target.closest('.fab-center') && !e.target.closest('.fab-menu')) {
-        setFabOpen(false);
-      }
-    };
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, [fabOpen]);
+    useStore.getState().applyDueRecurring();
+  }, []);
 
   useEffect(() => {
     if (!window.Capacitor?.Plugins?.App) return;
     const CapApp = window.Capacitor.Plugins.App;
-
-    // addListener may return a Promise (Capacitor 4+) or a plain handle object (Capacitor 3).
-    // We handle both cases safely without calling .then() directly.
     let handle = null;
     const listenerResult = CapApp.addListener('backButton', () => {
       if (isLocked) return;
@@ -69,17 +59,12 @@ function AppShell() {
       if (window.location.pathname !== '/') { navigate('/'); return; }
       CapApp.exitApp();
     });
-
-    // Resolve handle whether addListener returned a Promise or a plain object
     if (listenerResult && typeof listenerResult.then === 'function') {
       listenerResult.then(h => { handle = h; });
     } else {
       handle = listenerResult;
     }
-
-    return () => {
-      try { handle?.remove?.(); } catch (_) {}
-    };
+    return () => { try { handle?.remove?.(); } catch (_) {} };
   }, [isLocked, fabOpen, sidebarOpen, showTxnForm, showGroupExpenseForm, navigate]);
 
   const openTxnForm = useCallback((type = 'expense', txn = null) => {
@@ -98,6 +83,7 @@ function AppShell() {
         <Routes>
           <Route path="/" element={<Dashboard onAddTransaction={openTxnForm} />} />
           <Route path="/transactions" element={<TransactionList />} />
+          <Route path="/recurring" element={<RecurringView />} />
           <Route path="/budgets" element={<BudgetView />} />
           <Route path="/groups" element={<GroupsView />} />
           <Route path="/settle-up" element={<SettleUpView />} />
@@ -112,6 +98,9 @@ function AppShell() {
       {isMobile && (
         <>
           <MobileNav onFabClick={() => setFabOpen((o) => !o)} />
+          {fabOpen && (
+            <div onClick={() => setFabOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', zIndex: 89, animation: 'fadeIn 0.15s ease' }} />
+          )}
           <div className={`fab-menu ${fabOpen ? 'active' : ''}`}>
             <button className="fab-menu-item" onClick={() => { setFabOpen(false); openTxnForm('expense'); }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
@@ -121,22 +110,20 @@ function AppShell() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               Group Expense
             </button>
+            <button className="fab-menu-item" onClick={() => { setFabOpen(false); navigate('/recurring'); }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              Recurring
+            </button>
           </div>
         </>
       )}
 
       {showTxnForm && (
-        <TransactionForm
-          transaction={txnFormData}
-          defaultType={txnFormType}
-          onClose={() => { setShowTxnForm(false); setTxnFormData(null); }}
-        />
+        <TransactionForm transaction={txnFormData} defaultType={txnFormType} onClose={() => { setShowTxnForm(false); setTxnFormData(null); }} />
       )}
-
       {showGroupExpenseForm && (
         <GroupExpenseForm groupId={null} expense={null} onClose={() => setShowGroupExpenseForm(false)} />
       )}
-
       <Toast toast={toast} />
     </div>
   );

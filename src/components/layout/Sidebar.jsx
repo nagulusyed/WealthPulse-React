@@ -6,6 +6,7 @@ import './Sidebar.css';
 const NAV_MAIN = [
   { path: '/', label: 'Dashboard', icon: 'dashboard' },
   { path: '/transactions', label: 'Transactions', icon: 'transactions' },
+  { path: '/recurring', label: 'Recurring', icon: 'recurring' },
   { path: '/budgets', label: 'Budgets', icon: 'budgets' },
 ];
 
@@ -22,6 +23,7 @@ const NAV_BOTTOM_NAV = [
 const ICONS = {
   dashboard: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
   transactions: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h14M3 10h14M3 13h10"/></svg>,
+  recurring: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
   budgets: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>,
   groups: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   settle: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3v10m0 0l-3-3m3 3l3-3M9 21V11m0 0l-3 3m3-3l3 3"/></svg>,
@@ -30,48 +32,32 @@ const ICONS = {
 };
 
 export function Sidebar({ isOpen, onClose }) {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const isMobile = useIsMobile();
+  const location  = useLocation();
+  const navigate  = useNavigate();
+  const isMobile  = useIsMobile();
   const togglePrivacy = useStore((s) => s.togglePrivacy);
-  const privacyMode = useStore((s) => s.privacyMode);
-  const pendingCount = useStore((s) => s.pendingSmsTransactions.length);
+  const privacyMode   = useStore((s) => s.privacyMode);
+  const pendingCount  = useStore((s) => s.pendingSmsTransactions.length);
+  const recurringCount = useStore((s) => s.recurringTxns.length);
 
-  const handleNav = (path) => {
-    navigate(path);
-    if (isMobile) onClose();
-  };
-
-  // treat /reports as active on /insights too (redirect in place)
+  const handleNav = (path) => { navigate(path); if (isMobile) onClose(); };
   const isActive = (path) =>
     location.pathname === path ||
-    (path === '/insights' && location.pathname === '/reports');
+    (path === '/insights' && location.pathname === '/reports') ||
+    (path === '/groups' && location.pathname === '/settle-up');
 
   const renderNavItem = (item) => (
-    <button
-      key={item.path}
-      className={`nav-item ${isActive(item.path) ? 'active' : ''}`}
-      onClick={() => handleNav(item.path)}
-      style={{ position: 'relative' }}
-    >
+    <button key={item.path} className={`nav-item ${isActive(item.path) ? 'active' : ''}`} onClick={() => handleNav(item.path)} style={{ position: 'relative' }}>
       {ICONS[item.icon]}
       <span>{item.label}</span>
       {item.path === '/notifications' && pendingCount > 0 && (
-        <span style={{
-          marginLeft: 'auto',
-          background: '#ef4444',
-          color: '#fff',
-          fontSize: '0.65rem',
-          fontWeight: 700,
-          borderRadius: '9999px',
-          minWidth: 18,
-          height: 18,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '0 5px',
-        }}>
+        <span style={{ marginLeft: 'auto', background: '#ef4444', color: '#fff', fontSize: '0.65rem', fontWeight: 700, borderRadius: '9999px', minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>
           {pendingCount > 9 ? '9+' : pendingCount}
+        </span>
+      )}
+      {item.path === '/recurring' && recurringCount > 0 && (
+        <span style={{ marginLeft: 'auto', background: 'rgba(99,102,241,0.2)', color: 'var(--accent-indigo)', fontSize: '0.65rem', fontWeight: 700, borderRadius: '9999px', minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>
+          {recurringCount}
         </span>
       )}
     </button>

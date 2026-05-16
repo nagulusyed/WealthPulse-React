@@ -17,7 +17,6 @@ function applyTheme(theme) {
   if (meta) meta.content = resolved === 'light' ? '#f5f5f7' : '#050505';
 }
 
-// Listen for OS theme changes when theme is set to 'auto'
 let autoThemeMediaQuery = null;
 function setupAutoThemeListener(theme) {
   if (autoThemeMediaQuery) {
@@ -34,6 +33,8 @@ function setupAutoThemeListener(theme) {
 const useStore = create((set, get) => ({
   // ── Auth ──
   isLocked: true,
+  setLocked: (locked) => set({ isLocked: locked }),
+
   // ── User Profile ──
   userUpiId: localStorage.getItem('wp_user_upi_id') || '',
   setUserUpiId: (upiId) => {
@@ -61,7 +62,14 @@ const useStore = create((set, get) => ({
   // ── Month Navigation ──
   selectedMonth: new Date(),
   prevMonth: () => set((s) => { const d = new Date(s.selectedMonth); d.setMonth(d.getMonth() - 1); return { selectedMonth: d }; }),
-  nextMonth: () => set((s) => { const d = new Date(s.selectedMonth); d.setMonth(d.getMonth() + 1); return { selectedMonth: d }; }),
+  // Fix #12: block navigating past current month
+  nextMonth: () => set((s) => {
+    const now = new Date();
+    const cur = new Date(s.selectedMonth);
+    if (cur.getFullYear() >= now.getFullYear() && cur.getMonth() >= now.getMonth()) return s;
+    cur.setMonth(cur.getMonth() + 1);
+    return { selectedMonth: cur };
+  }),
 
   // ── Transactions ──
   transactions: storage.getTransactions(),
@@ -95,6 +103,63 @@ const useStore = create((set, get) => ({
     set({ budgets: updated });
   },
 
+  // ── Savings Target ──
+  savingsTarget: parseInt(localStorage.getItem('wp_savings_target') || '30', 10),
+  setSavingsTarget: (pct) => {
+    localStorage.setItem('wp_savings_target', String(pct));
+    set({ savingsTarget: pct });
+  },
+
+  // ── Recurring Transactions ──
+  recurringTxns: storage.getRecurring(),
+  addRecurring: (data) => {
+    const item = { ...data, id: generateId('rec_'), createdAt: new Date().toISOString() };
+    const updated = [...get().recurringTxns, item];
+    storage.saveRecurring(updated);
+    set({ recurringTxns: updated });
+    return item;
+  },
+  updateRecurring: (id, data) => {
+    const updated = get().recurringTxns.map((r) => r.id === id ? { ...r, ...data } : r);
+    storage.saveRecurring(updated);
+    set({ recurringTxns: updated });
+  },
+  deleteRecurring: (id) => {
+    const updated = get().recurringTxns.filter((r) => r.id !== id);
+    storage.saveRecurring(updated);
+    set({ recurringTxns: updated });
+  },
+  // Fix #14: guard against applying same recurring twice in one day
+  applyDueRecurring: () => {
+    const today = new Date().toISOString().split('T')[0];
+    const recurring = get().recurringTxns;
+    let changed = false;
+    const updated = recurring.map((r) => {
+      if (!r.nextDate || r.nextDate > today || r.lastApplied === today) return r;
+      get().addTransaction({
+        type: r.type,
+        description: r.description,
+        amount: r.amount,
+        category: r.category,
+        date: today,
+        notes: `Auto: ${r.description}`,
+        isRecurring: true,
+        recurringId: r.id,
+      });
+      const next = new Date(r.nextDate);
+      if (r.frequency === 'daily')   next.setDate(next.getDate() + 1);
+      else if (r.frequency === 'weekly')  next.setDate(next.getDate() + 7);
+      else if (r.frequency === 'monthly') next.setMonth(next.getMonth() + 1);
+      else if (r.frequency === 'yearly')  next.setFullYear(next.getFullYear() + 1);
+      changed = true;
+      return { ...r, nextDate: next.toISOString().split('T')[0], lastApplied: today };
+    });
+    if (changed) {
+      storage.saveRecurring(updated);
+      set({ recurringTxns: updated });
+    }
+  },
+
   // ── People ──
   people: storage.getPeople(),
   addPerson: (data) => {
@@ -109,7 +174,7 @@ const useStore = create((set, get) => ({
       phone: data.phone || '',
       upiId: data.upiId || '',
       contactId: data.contactId || null,
-      avatar: data.avatar || null
+      avatar: data.avatar || null,
     };
     const updated = [...people, person];
     storage.savePeople(updated);
@@ -120,12 +185,7 @@ const useStore = create((set, get) => ({
     const updated = get().people.map((p) => {
       if (p.id === id) {
         const name = data.name || p.name;
-        return {
-          ...p,
-          ...data,
-          name: name.trim(),
-          initials: getInitials(name.trim())
-        };
+        return { ...p, ...data, name: name.trim(), initials: getInitials(name.trim()) };
       }
       return p;
     });
@@ -133,26 +193,14 @@ const useStore = create((set, get) => ({
     set({ people: updated });
   },
   deletePerson: (id) => {
-    // 1. Remove from people list
     const updatedPeople = get().people.filter((p) => p.id !== id);
     storage.savePeople(updatedPeople);
-
-    // 2. Remove from all groups' member lists
-    const updatedGroups = get().groups.map((g) => ({
-      ...g,
-      memberIds: g.memberIds.filter((m) => m !== id),
-    }));
+    const updatedGroups = get().groups.map((g) => ({ ...g, memberIds: g.memberIds.filter((m) => m !== id) }));
     storage.saveGroups(updatedGroups);
-
-    // 3. Clean up group expenses — delete expenses they paid, remove from splits
     const updatedExpenses = get().groupExpenses
       .filter((e) => e.paidBy !== id)
-      .map((e) => ({
-        ...e,
-        splits: e.splits.filter((s) => s.personId !== id),
-      }));
+      .map((e) => ({ ...e, splits: e.splits.filter((s) => s.personId !== id) }));
     storage.saveGroupExpenses(updatedExpenses);
-
     set({ people: updatedPeople, groups: updatedGroups, groupExpenses: updatedExpenses });
   },
   getPersonById: (id) => get().people.find((p) => p.id === id),
@@ -261,7 +309,7 @@ const useStore = create((set, get) => ({
       debtor.balance += amount;
       creditor.balance -= amount;
       if (Math.abs(debtor.balance) < 0.01) d++;
-      if (Math.abs(creditor.balance) < 0.01) c++;  // fixed: was creditor.balance < 0.01
+      if (Math.abs(creditor.balance) < 0.01) c++;
     }
     return transactions;
   },
@@ -270,49 +318,69 @@ const useStore = create((set, get) => ({
     get().groups.forEach((g) => { all.push(...get().getSimplifiedSettlements(g.id)); });
     return all;
   },
+
   settleDebt: (fromId, toId, groupId, amount) => {
-    const exp = { id: generateId('set_'), groupId, description: 'Settlement', amount, paidBy: fromId, date: new Date().toISOString().split('T')[0], splitMethod: 'equal', splits: [{ personId: toId, share: amount }], settledBy: [], createdAt: new Date().toISOString() };
+    const id = generateId('set_');
+    const exp = { id, groupId, description: 'Settlement', amount, paidBy: fromId, date: new Date().toISOString().split('T')[0], splitMethod: 'equal', splits: [{ personId: toId, share: amount }], settledBy: [], createdAt: new Date().toISOString(), isSettlement: true };
     const updated = [...get().groupExpenses, exp];
     storage.saveGroupExpenses(updated);
     set({ groupExpenses: updated });
+    return id;
+  },
+
+  undoSettlement: (settlementExpId, linkedTxnId) => {
+    const updated = get().groupExpenses.filter((e) => e.id !== settlementExpId);
+    storage.saveGroupExpenses(updated);
+    set({ groupExpenses: updated });
+    if (linkedTxnId) get().deleteTransaction(linkedTxnId);
   },
 
   // ── Export / Import ──
-  exportData: () => ({ transactions: get().transactions, budgets: get().budgets, people: get().people, groups: get().groups, groupExpenses: get().groupExpenses, exportedAt: new Date().toISOString(), version: '3.0.0' }),
+  exportData: () => ({ transactions: get().transactions, budgets: get().budgets, people: get().people, groups: get().groups, groupExpenses: get().groupExpenses, recurringTxns: get().recurringTxns, exportedAt: new Date().toISOString(), version: '3.2.0' }),
   importData: (data) => {
     if (data.transactions) storage.saveTransactions(data.transactions);
     if (data.budgets) storage.saveBudgets(data.budgets);
     if (data.people) storage.savePeople(data.people);
     if (data.groups) storage.saveGroups(data.groups);
     if (data.groupExpenses) storage.saveGroupExpenses(data.groupExpenses);
-    set({ transactions: data.transactions || get().transactions, budgets: data.budgets || get().budgets, people: data.people || get().people, groups: data.groups || get().groups, groupExpenses: data.groupExpenses || get().groupExpenses });
+    if (data.recurringTxns) storage.saveRecurring(data.recurringTxns);
+    set({
+      transactions: data.transactions || get().transactions,
+      budgets: data.budgets || get().budgets,
+      people: data.people || get().people,
+      groups: data.groups || get().groups,
+      groupExpenses: data.groupExpenses || get().groupExpenses,
+      recurringTxns: data.recurringTxns || get().recurringTxns,
+    });
   },
 
-  // ── Full Reset ──
+  // Fix #1: resetAll now correctly resets recurringTxns in state
   resetAll: () => {
     storage.resetAll();
-    set({ transactions: [], budgets: DEFAULT_BUDGETS, people: [{ id: 'self', name: 'You', initials: 'You', color: '#8b5cf6', createdAt: new Date().toISOString() }], groups: [], groupExpenses: [], pendingSmsTransactions: [], payeeMemory: {}, privacyMode: false, isLocked: true });
+    set({
+      transactions: [],
+      budgets: DEFAULT_BUDGETS,
+      people: [{ id: 'self', name: 'You', initials: 'You', color: '#8b5cf6', createdAt: new Date().toISOString() }],
+      groups: [],
+      groupExpenses: [],
+      recurringTxns: [],
+      pendingSmsTransactions: [],
+      payeeMemory: {},
+      privacyMode: false,
+      isLocked: true,
+      savingsTarget: 30,
+    });
   },
 
-  // ── Alerts (push notifications) ──
-  // Master toggle + per-type toggles — all persisted to localStorage
+  // ── Alerts ──
   alertsEnabled: localStorage.getItem('wp_alerts_enabled') !== 'false',
   budgetAlertsEnabled: localStorage.getItem('wp_budget_alerts') !== 'false',
   settlementAlertsEnabled: localStorage.getItem('wp_settlement_alerts') !== 'false',
-  setAlertsEnabled: (enabled) => {
-    localStorage.setItem('wp_alerts_enabled', String(enabled));
-    set({ alertsEnabled: enabled });
-  },
-  setBudgetAlertsEnabled: (enabled) => {
-    localStorage.setItem('wp_budget_alerts', String(enabled));
-    set({ budgetAlertsEnabled: enabled });
-  },
-  setSettlementAlertsEnabled: (enabled) => {
-    localStorage.setItem('wp_settlement_alerts', String(enabled));
-    set({ settlementAlertsEnabled: enabled });
-  },
+  setAlertsEnabled: (enabled) => { localStorage.setItem('wp_alerts_enabled', String(enabled)); set({ alertsEnabled: enabled }); },
+  setBudgetAlertsEnabled: (enabled) => { localStorage.setItem('wp_budget_alerts', String(enabled)); set({ budgetAlertsEnabled: enabled }); },
+  setSettlementAlertsEnabled: (enabled) => { localStorage.setItem('wp_settlement_alerts', String(enabled)); set({ settlementAlertsEnabled: enabled }); },
 
-  // ── SMS Auto-capture ──
+  // ── SMS ──
   smsEnabled: storage.getSmsEnabled(),
   setSmsEnabled: (enabled) => { storage.saveSmsEnabled(enabled); set({ smsEnabled: enabled }); },
 
@@ -321,28 +389,17 @@ const useStore = create((set, get) => ({
   isBiometricAvailable: false,
   setBiometricsEnabled: (enabled) => { storage.saveBiometricsEnabled(enabled); set({ biometricsEnabled: enabled }); },
   checkBiometricAvailability: async () => {
-    try {
-      const result = await NativeBiometric.isAvailable();
-      set({ isBiometricAvailable: !!result.isAvailable });
-    } catch (e) {
-      set({ isBiometricAvailable: false });
-    }
+    try { const result = await NativeBiometric.isAvailable(); set({ isBiometricAvailable: !!result.isAvailable }); }
+    catch { set({ isBiometricAvailable: false }); }
   },
   verifyBiometrics: async () => {
     try {
       const result = await NativeBiometric.isAvailable();
       if (!result.isAvailable) return false;
-      await NativeBiometric.verifyIdentity({
-        reason: 'Unlock WealthPulse',
-        title: 'Biometric Login',
-        subtitle: 'Use fingerprint or face to unlock',
-        description: 'Please authenticate to continue',
-      });
+      await NativeBiometric.verifyIdentity({ reason: 'Unlock WealthPulse', title: 'Biometric Login', subtitle: 'Use fingerprint or face to unlock', description: 'Please authenticate to continue' });
       set({ isLocked: false });
       return true;
-    } catch (e) {
-      return false;
-    }
+    } catch { return false; }
   },
 
   // ── Background Service ──
@@ -356,8 +413,8 @@ const useStore = create((set, get) => ({
   toggleBgService: async () => {
     const { nativeService } = await import('../services/nativeService');
     const next = !get().bgServiceEnabled;
-    if (next) { await nativeService.startBackgroundService(); }
-    else { await nativeService.stopBackgroundService(); }
+    if (next) await nativeService.startBackgroundService();
+    else await nativeService.stopBackgroundService();
     set({ bgServiceEnabled: next });
   },
 
@@ -376,6 +433,11 @@ const useStore = create((set, get) => ({
     const updated = get().pendingSmsTransactions.filter((s) => s.id !== id);
     storage.savePendingSms(updated);
     set({ pendingSmsTransactions: updated });
+  },
+  // Fix #8/#11: dismiss all pending SMS at once
+  dismissAllPendingSms: () => {
+    storage.savePendingSms([]);
+    set({ pendingSmsTransactions: [] });
   },
   acceptPendingSmsAsExpense: (id, categoryOverride) => {
     const item = get().pendingSmsTransactions.find((s) => s.id === id);
@@ -409,7 +471,6 @@ const useStore = create((set, get) => ({
   },
 }));
 
-// Apply theme on boot and set up auto-listener if needed
 const initialTheme = useStore.getState().theme;
 applyTheme(initialTheme);
 setupAutoThemeListener(initialTheme);

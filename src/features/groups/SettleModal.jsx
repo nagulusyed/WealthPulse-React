@@ -1,17 +1,23 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import useStore from '../../store/useStore';
 import { formatCurrency } from '../../utils/formatters';
-import { Modal, ConfirmModal } from '../../components/ui/Modal';
-import { openUpiApp } from '../../services/upiService';
+import { Modal } from '../../components/ui/Modal';
+import { hapticSuccess, hapticWarning } from '../../utils/haptics';
 
-export function SettleModal({ isOpen, onClose, settleData }) {
+const PAYMENT_METHODS = [
+  { id: 'Cash', label: 'Cash', icon: '💵' },
+  { id: 'UPI', label: 'UPI', icon: '📲' },
+  { id: 'Bank', label: 'Bank', icon: '🏦' },
+];
+
+export function SettleModal({ isOpen, onClose, settleData, onSettled }) {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [settleType, setSettleType]       = useState('Full');
+  const [note, setNote] = useState('');
+  const [syncPersonal, setSyncPersonal] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [settleType, setSettleType] = useState('full');
   const [partialAmount, setPartialAmount] = useState('');
-  const [syncPersonal, setSyncPersonal]   = useState(false);
-  const [showUpiConfirm, setShowUpiConfirm] = useState(false);
-  const [upiError, setUpiError]           = useState('');
-  const [upiLoading, setUpiLoading]       = useState(false);
+  const [partialError, setPartialError] = useState('');
 
   const getPersonById  = useStore((s) => s.getPersonById);
   const getGroupById   = useStore((s) => s.getGroupById);
@@ -19,30 +25,20 @@ export function SettleModal({ isOpen, onClose, settleData }) {
   const settleDebt     = useStore((s) => s.settleDebt);
   const addTransaction = useStore((s) => s.addTransaction);
 
-  useEffect(() => {
-    if (isOpen && settleData) {
-      setPaymentMethod('Cash');
-      setSettleType('Full');
-      setPartialAmount(settleData.amount.toFixed(2));
-      setSyncPersonal(false);
-      setShowUpiConfirm(false);
-      setUpiError('');
-      setUpiLoading(false);
-    }
-  }, [isOpen, settleData]);
-
   const settleCategory = useMemo(() => {
     if (!settleData) return 'other_exp';
     const { from, to, groupId } = settleData;
-    const expenses = groupExpenses.filter(
-      (e) => e.groupId === groupId && e.description !== 'Settlement'
-    );
-    const relevant = expenses
-      .filter((e) => e.paidBy === to && e.splits?.some((s) => s.personId === from && s.share > 0))
-      .sort((a, b) => b.amount - a.amount);
-    if (relevant.length > 0) return relevant[0].category || 'other_exp';
-    const fallback = expenses.find((e) => e.category && e.category !== 'other_exp');
-    return fallback?.category || 'other_exp';
+    const expenses = groupExpenses.filter((e) => e.groupId === groupId && e.description !== 'Settlement');
+    const relevantExpenses = expenses.filter((e) => {
+      if (e.paidBy !== to) return false;
+      return e.splits?.some((s) => s.personId === from && s.share > 0);
+    });
+    if (relevantExpenses.length === 0) {
+      const anyWithCat = expenses.find((e) => e.category && e.category !== 'other_exp');
+      return anyWithCat?.category || 'other_exp';
+    }
+    const sorted = [...relevantExpenses].sort((a, b) => b.amount - a.amount);
+    return sorted[0].category || 'other_exp';
   }, [settleData, groupExpenses]);
 
   if (!settleData) return null;
@@ -53,208 +49,171 @@ export function SettleModal({ isOpen, onClose, settleData }) {
   const toP    = getPersonById(settleData.to);
   const group  = getGroupById(settleData.groupId);
 
+  const fromName     = settleData.from === 'self' ? 'You' : fromP?.name || 'Unknown';
+  const toName       = settleData.to   === 'self' ? 'You' : toP?.name  || 'Unknown';
+  const fromInitials = settleData.from === 'self' ? 'ME'  : fromP?.initials || '?';
+  const toInitials   = settleData.to   === 'self' ? 'ME'  : toP?.initials   || '?';
+  const fromColor    = settleData.from === 'self' ? '#8b5cf6' : fromP?.color || '#888';
+  const toColor      = settleData.to   === 'self' ? '#8b5cf6' : toP?.color   || '#888';
+
   const getFinalAmount = () => {
-    const amt = settleType === 'Full' ? settleData.amount : parseFloat(partialAmount);
-    return isNaN(amt) || amt <= 0 ? null : amt;
+    if (settleType === 'full') return settleData.amount;
+    const val = parseFloat(partialAmount);
+    return isNaN(val) ? 0 : val;
   };
 
-  const doSettle = (finalAmount, method) => {
-    settleDebt(settleData.from, settleData.to, settleData.groupId, finalAmount);
+  const handleSettle = async () => {
+    const finalAmount = getFinalAmount();
+
+    if (settleType === 'partial') {
+      if (!partialAmount || isNaN(parseFloat(partialAmount))) {
+        await hapticWarning();
+        setPartialError('Enter a valid amount');
+        return;
+      }
+      if (parseFloat(partialAmount) <= 0) {
+        await hapticWarning();
+        setPartialError('Amount must be greater than 0');
+        return;
+      }
+      if (parseFloat(partialAmount) > settleData.amount) {
+        await hapticWarning();
+        setPartialError(`Cannot exceed ${formatCurrency(settleData.amount)}`);
+        return;
+      }
+    }
+
+    // #12: haptic success on settle
+    await hapticSuccess();
+
+    const settlementExpId = settleDebt(settleData.from, settleData.to, settleData.groupId, finalAmount);
+
+    let linkedTxnId = null;
     if (isYouInvolved && syncPersonal) {
       const otherPerson = isYouPaying ? toP : fromP;
-      const pm = method || paymentMethod;
+      const noteText = note.trim() || `Settlement (${group?.name || 'Group'})`;
+      const txnId = `settle_txn_${settlementExpId}`;
       if (isYouPaying) {
-        addTransaction({
-          type: 'expense',
-          description: `Payment - ${pm} to ${otherPerson?.name}`,
-          amount: finalAmount,
-          category: settleCategory,
-          date: new Date().toISOString().split('T')[0],
-          notes: `Settlement to ${otherPerson?.name} (${group?.name})`,
-          isSettlement: true,
-          settledGroupId: settleData.groupId,
-        });
+        addTransaction({ id: txnId, type: 'expense', description: `Paid ${otherPerson?.name} via ${paymentMethod}`, amount: finalAmount, category: settleCategory, date: new Date().toISOString().split('T')[0], notes: noteText, isSettlement: true, settledGroupId: settleData.groupId });
       } else {
-        addTransaction({
-          type: 'income',
-          description: `Payment - ${pm} from ${otherPerson?.name}`,
-          amount: finalAmount,
-          category: 'other_inc',
-          date: new Date().toISOString().split('T')[0],
-          notes: `Settlement from ${otherPerson?.name} (${group?.name})`,
-          isSettlement: true,
-          settledGroupId: settleData.groupId,
-        });
+        addTransaction({ id: txnId, type: 'income', description: `Received from ${otherPerson?.name} via ${paymentMethod}`, amount: finalAmount, category: 'other_inc', date: new Date().toISOString().split('T')[0], notes: noteText, isSettlement: true, settledGroupId: settleData.groupId });
       }
+      linkedTxnId = txnId;
     }
-    onClose();
-  };
 
-  const handleSettle = (e) => {
-    e.preventDefault();
-    const finalAmount = getFinalAmount();
-    if (!finalAmount) return;
-    doSettle(finalAmount, paymentMethod);
+    onSettled?.({ settlementExpId, linkedTxnId, finalAmount, fromName, toName });
+    setConfirmed(true);
+    setTimeout(() => {
+      onClose();
+      setConfirmed(false);
+      setNote(''); setSyncPersonal(false); setPaymentMethod('Cash');
+      setSettleType('full'); setPartialAmount(''); setPartialError('');
+    }, 1200);
   };
-
-  const handleUpiPay = async () => {
-    const finalAmount = getFinalAmount();
-    if (!finalAmount || !toP?.upiId) return;
-    setUpiError('');
-    setUpiLoading(true);
-    try {
-      const success = await openUpiApp({
-        upiId: toP.upiId,
-        name: toP.name,
-        amount: finalAmount,
-        note: `WealthPulse: ${group?.name || 'Settlement'}`,
-      });
-      if (success) {
-        setPaymentMethod('UPI');
-        setSyncPersonal(true);
-        setTimeout(() => setShowUpiConfirm(true), 1200);
-      }
-    } catch (e) {
-      if (e?.message === 'NO_UPI_APP') {
-        setUpiError('No UPI app found. Please install GPay, PhonePe or Paytm.');
-      } else {
-        setUpiError('Could not open UPI app. Try again.');
-      }
-    } finally {
-      setUpiLoading(false);
-    }
-  };
-
-  const handleUpiConfirm = () => {
-    const finalAmount = getFinalAmount();
-    if (!finalAmount) return;
-    setShowUpiConfirm(false);
-    doSettle(finalAmount, 'UPI');
-  };
-
-  const finalAmt = getFinalAmount();
 
   return (
-    <>
-      <Modal
-        isOpen={isOpen && !showUpiConfirm}
-        onClose={onClose}
-        title={isYouInvolved ? 'Record Payment' : 'Record Third-Party Payment'}
-      >
-        <form onSubmit={handleSettle}>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem', fontSize: '0.875rem', lineHeight: 1.6 }}>
-            {isYouInvolved
-              ? isYouPaying
-                ? `You pay ${toP?.name || 'Unknown'} — ${formatCurrency(settleData.amount)}`
-                : `${fromP?.name || 'Unknown'} pays you — ${formatCurrency(settleData.amount)}`
-              : `${fromP?.name || 'Unknown'} pays ${toP?.name || 'Unknown'} — ${formatCurrency(settleData.amount)}`
-            }
-          </p>
+    <Modal isOpen={isOpen} onClose={onClose} title="Record Payment">
+      {confirmed ? (
+        <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>✅</div>
+          <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1rem' }}>Payment recorded!</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '0.25rem' }}>Balances updated.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
-          {!isYouInvolved && (
-            <div style={{ background: 'rgba(99,102,241,0.08)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Third-party settlement — updates group balances only.
+          {/* Who pays whom */}
+          <div style={{ background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', padding: '1.1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: fromColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, color: '#fff', margin: '0 auto 4px' }}>{fromInitials}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{fromName}</div>
             </div>
-          )}
-
-          <div className="form-group">
-            <label className="form-label">Payment Method</label>
-            <div className="type-toggle">
-              {['Cash', 'UPI', 'Bank'].map((m) => (
-                <button key={m} type="button" className={`type-btn ${paymentMethod === m ? 'active' : ''}`} onClick={() => setPaymentMethod(m)}>{m}</button>
-              ))}
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-indigo)' }}>
+                {formatCurrency(settleType === 'partial' && partialAmount ? parseFloat(partialAmount) || 0 : settleData.amount)}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}>
+                <div style={{ height: 1, width: 28, background: 'var(--text-muted)' }} />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>{group?.name || 'Group'}</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: toColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, color: '#fff', margin: '0 auto 4px' }}>{toInitials}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{toName}</div>
             </div>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Settlement Type</label>
-            <div className="type-toggle">
-              {['Full', 'Partial'].map((t) => (
-                <button key={t} type="button" className={`type-btn ${settleType === t ? 'active' : ''}`} onClick={() => setSettleType(t)}>{t}</button>
+          {/* Full / Partial */}
+          <div>
+            <label className="form-label" style={{ marginBottom: '0.5rem', display: 'block' }}>Amount</label>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: settleType === 'partial' ? '0.6rem' : 0 }}>
+              {[{ id: 'full', label: `Full — ${formatCurrency(settleData.amount)}` }, { id: 'partial', label: 'Partial' }].map((opt) => (
+                <button key={opt.id} type="button" onClick={() => { setSettleType(opt.id); setPartialError(''); }}
+                  style={{ flex: 1, padding: '0.5rem', borderRadius: 'var(--radius-sm)', border: settleType === opt.id ? '2px solid var(--accent-indigo)' : '2px solid var(--border-card)', background: settleType === opt.id ? 'rgba(99,102,241,0.12)' : 'var(--bg-card)', color: settleType === opt.id ? 'var(--accent-indigo)' : 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}
+                >{opt.label}</button>
               ))}
             </div>
-          </div>
-
-          {settleType === 'Partial' && (
-            <div className="form-group animate-in">
-              <label className="form-label">Amount Paid</label>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>₹</span>
-                <input
-                  type="number" className="form-input" style={{ paddingLeft: '2rem' }}
-                  value={partialAmount} onChange={(e) => setPartialAmount(e.target.value)}
-                  placeholder="0.00" min="0.01" max={settleData.amount} step="0.01" required autoFocus
-                />
-              </div>
-            </div>
-          )}
-
-          {isYouInvolved && (
-            <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500 }}>
-                <input type="checkbox" checked={syncPersonal} onChange={(e) => setSyncPersonal(e.target.checked)} style={{ width: 20, height: 20, accentColor: 'var(--accent-indigo)' }} />
-                <span>Update in personal finance</span>
-              </label>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.3rem', marginLeft: '2.5rem' }}>
-                {isYouPaying ? 'Records as expense under original category' : 'Records as income (reduces your net expense)'}
-              </p>
-            </div>
-          )}
-
-          {/* UPI instant pay button */}
-          {isYouPaying && toP?.upiId && (
-            <div style={{ marginTop: '1.5rem', marginBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <div style={{ flex: 1, height: 1, background: 'var(--border-color)' }} />
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Instant Payment</span>
-                <div style={{ flex: 1, height: 1, background: 'var(--border-color)' }} />
-              </div>
-              <button
-                type="button"
-                disabled={upiLoading}
-                className="btn btn-primary"
-                style={{ width: '100%', background: upiLoading ? '#6b7280' : '#00d09c', border: 'none', height: '3.25rem', fontSize: '1rem', fontWeight: 600, boxShadow: upiLoading ? 'none' : '0 4px 12px rgba(0,208,156,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s' }}
-                onClick={handleUpiPay}
-              >
-                {upiLoading ? (
-                  <span style={{ fontSize: '0.9rem' }}>Opening UPI...</span>
-                ) : (
-                  <>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                    </svg>
-                    Pay ₹{finalAmt ? Math.round(finalAmt) : ''} via UPI
-                  </>
-                )}
-              </button>
-              <p style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                → {toP.upiId}
-              </p>
-              {upiError && (
-                <p style={{ color: 'var(--accent-red)', fontSize: '0.78rem', marginTop: '0.5rem', textAlign: 'center', lineHeight: 1.4 }}>
-                  ⚠️ {upiError}
+            {settleType === 'partial' && (
+              <div>
+                <input type="number" className="form-input" placeholder={`Enter amount (max ${formatCurrency(settleData.amount)})`} value={partialAmount} onChange={(e) => { setPartialAmount(e.target.value); setPartialError(''); }} min="1" max={settleData.amount} style={{ width: '100%' }} />
+                {partialError && <p style={{ color: 'var(--accent-red)', fontSize: '0.75rem', marginTop: '4px' }}>{partialError}</p>}
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.73rem', marginTop: '4px' }}>
+                  Remaining after this: {formatCurrency(settleData.amount - (parseFloat(partialAmount) || 0))}
                 </p>
-              )}
+              </div>
+            )}
+          </div>
+
+          {/* Third-party notice */}
+          {!isYouInvolved && (
+            <div style={{ background: 'rgba(99,102,241,0.08)', borderRadius: 'var(--radius-sm)', padding: '0.65rem 0.9rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Third-party payment — only group balances will be updated.
             </div>
           )}
 
-          <div className="modal-actions">
-            <div style={{ flex: 1 }} />
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary">{isYouInvolved ? 'Confirm' : 'Record'}</button>
+          {/* Payment method */}
+          <div>
+            <label className="form-label" style={{ marginBottom: '0.5rem', display: 'block' }}>How was it paid?</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {PAYMENT_METHODS.map((m) => (
+                <button key={m.id} type="button" onClick={() => setPaymentMethod(m.id)} style={{ flex: 1, padding: '0.55rem 0', borderRadius: 'var(--radius-sm)', border: paymentMethod === m.id ? '2px solid var(--accent-indigo)' : '2px solid var(--border-card)', background: paymentMethod === m.id ? 'rgba(99,102,241,0.12)' : 'var(--bg-card)', color: paymentMethod === m.id ? 'var(--accent-indigo)' : 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ fontSize: '1.1rem' }}>{m.icon}</span>{m.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </form>
-      </Modal>
 
-      <ConfirmModal
-        isOpen={showUpiConfirm}
-        onClose={() => setShowUpiConfirm(false)}
-        onConfirm={handleUpiConfirm}
-        title="💸 Payment sent?"
-        message={`Did ₹${finalAmt?.toFixed(0)} go to ${toP?.name} via UPI?`}
-        confirmText="Yes, mark settled"
-        cancelText="No, cancel"
-      />
-    </>
+          {/* Note */}
+          <div>
+            <label className="form-label" style={{ marginBottom: '0.4rem', display: 'block' }}>
+              Note <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span>
+            </label>
+            <input type="text" className="form-input" placeholder="e.g. Goa trip, dinner split..." value={note} onChange={(e) => setNote(e.target.value)} maxLength={80} style={{ width: '100%' }} />
+          </div>
+
+          {/* Sync to personal finance */}
+          {isYouInvolved && (
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer', padding: '0.75rem', borderRadius: 'var(--radius-sm)', background: syncPersonal ? 'rgba(99,102,241,0.07)' : 'var(--bg-card)', border: syncPersonal ? '1.5px solid rgba(99,102,241,0.3)' : '1.5px solid var(--border-card)', transition: 'all 0.15s' }}>
+              <input type="checkbox" checked={syncPersonal} onChange={(e) => setSyncPersonal(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--accent-indigo)', marginTop: 2, flexShrink: 0 }} />
+              <div>
+                <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Add to personal finance</div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.4 }}>
+                  {isYouPaying ? 'Records as an expense in your transactions' : 'Records as income in your transactions'}
+                </div>
+              </div>
+            </label>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</button>
+            <button type="button" className="btn btn-primary" onClick={handleSettle} style={{ flex: 2 }}>
+              {isYouPaying ? '✓ Mark as Paid' : '✓ Mark as Received'}
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }

@@ -1,42 +1,55 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import useStore from '../../store/useStore';
 import { formatCurrency } from '../../utils/formatters';
 import { Modal, ConfirmModal } from '../../components/ui/Modal';
 import { GroupDetail } from './GroupDetail';
 import { searchContacts, requestContactsPermission, getUpiAppLabel } from '../../services/contactsService';
+import { hapticLight, hapticMedium } from '../../utils/haptics';
 import './GroupsView.css';
-import './PeopleView.css'; // Reuse PeopleView styles for the search results
+import './PeopleView.css';
 
 export function GroupsView() {
-  const groups = useStore((s) => s.groups);
-  const people = useStore((s) => s.people);
+  const groups       = useStore((s) => s.groups);
+  const people       = useStore((s) => s.people);
   const groupExpenses = useStore((s) => s.groupExpenses);
-  const addGroup = useStore((s) => s.addGroup);
-  const addPerson = useStore((s) => s.addPerson);
+  const addGroup     = useStore((s) => s.addGroup);
+  const addPerson    = useStore((s) => s.addPerson);
   const updatePerson = useStore((s) => s.updatePerson);
   const deletePerson = useStore((s) => s.deletePerson);
-  const privacyMode = useStore((s) => s.privacyMode);
+  const privacyMode  = useStore((s) => s.privacyMode);
 
-  const [showAddGroup, setShowAddGroup] = useState(false);
+  // #11: read openGroupId from navigation state (set by Dashboard)
+  const location = useLocation();
+  const [selectedGroupId, setSelectedGroupId] = useState(location.state?.openGroupId || null);
+
+  // If navigation state changes (user taps a group from Dashboard again), update
+  useEffect(() => {
+    if (location.state?.openGroupId) {
+      setSelectedGroupId(location.state.openGroupId);
+      // Clear state so back navigation doesn't re-open
+      window.history.replaceState({}, '');
+    }
+  }, [location.state?.openGroupId]);
+
+  const [showAddGroup, setShowAddGroup]     = useState(false);
   const [showPersonForm, setShowPersonForm] = useState(false);
-  const [editingPerson, setEditingPerson] = useState(null);
-  const [selectedGroupId, setSelectedGroupId] = useState(null);
-  const [groupName, setGroupName] = useState('');
+  const [editingPerson, setEditingPerson]   = useState(null);
+  const [groupName, setGroupName]           = useState('');
   const [selectedMembers, setSelectedMembers] = useState([]);
-  const [personName, setPersonName] = useState('');
-  const [personPhone, setPersonPhone] = useState('');
-  const [personUpiId, setPersonUpiId] = useState('');
+  const [personName, setPersonName]         = useState('');
+  const [personPhone, setPersonPhone]       = useState('');
+  const [personUpiId, setPersonUpiId]       = useState('');
   const [personContactId, setPersonContactId] = useState(null);
-  const [mode, setMode] = useState('manual'); // 'manual' | 'contacts'
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [personError, setPersonError] = useState('');
+  const [mode, setMode]                     = useState('manual');
+  const [searchQuery, setSearchQuery]       = useState('');
+  const [searchResults, setSearchResults]   = useState([]);
+  const [isSearching, setIsSearching]       = useState(false);
+  const [personError, setPersonError]       = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const blur = privacyMode ? 'private-blur' : '';
 
-  // Contact search effect
   useEffect(() => {
     if (mode === 'contacts' && searchQuery.length >= 2) {
       const timer = setTimeout(async () => {
@@ -56,14 +69,13 @@ export function GroupsView() {
   }
 
   const otherPeople = people.filter((p) => p.id !== 'self');
-
   const getBalance = (personId) => useStore.getState().getGlobalBalance(personId);
   const getPersonBalance = (selfId, groupId) => useStore.getState().getPersonBalanceInGroup(selfId, groupId);
 
-  // --- Group handlers ---
-  const handleCreateGroup = (e) => {
+  const handleCreateGroup = async (e) => {
     e.preventDefault();
     if (!groupName.trim()) return;
+    await hapticMedium();
     addGroup(groupName, selectedMembers);
     setShowAddGroup(false);
     setGroupName('');
@@ -74,7 +86,6 @@ export function GroupsView() {
     setSelectedMembers((prev) => prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]);
   };
 
-  // --- Person handlers ---
   const openPersonForm = (person = null) => {
     setEditingPerson(person);
     setMode('manual');
@@ -92,46 +103,27 @@ export function GroupsView() {
     setPersonUpiId(contact.upiId || '');
     setPersonContactId(contact.id);
     setMode('manual');
-    if (editingPerson) {
-      setEditingPerson({ ...editingPerson, avatar: contact.avatar });
-    }
+    if (editingPerson) setEditingPerson({ ...editingPerson, avatar: contact.avatar });
   };
 
   const handleContactsMode = async () => {
     const granted = await requestContactsPermission();
-    if (granted) {
-      setMode('contacts');
-      setSearchQuery('');
-    } else {
-      setPersonError('Permission denied');
-    }
+    if (granted) { setMode('contacts'); setSearchQuery(''); }
+    else setPersonError('Permission denied');
   };
 
-  const handleSavePerson = (e) => {
+  const handleSavePerson = async (e) => {
     e.preventDefault();
     if (!personName.trim()) return;
     const isDuplicate = people.some((p) => p.id !== editingPerson?.id && p.name.toLowerCase() === personName.trim().toLowerCase());
     if (isDuplicate) { setPersonError('Name already exists'); return; }
-
-    const personData = {
-      name: personName.trim(),
-      phone: personPhone.trim(),
-      upiId: personUpiId.trim(),
-      contactId: personContactId,
-      avatar: editingPerson?.avatar || null
-    };
-
-    if (editingPerson) {
-      updatePerson(editingPerson.id, personData);
-    } else {
-      addPerson(personData);
-    }
+    await hapticMedium();
+    const personData = { name: personName.trim(), phone: personPhone.trim(), upiId: personUpiId.trim(), contactId: personContactId, avatar: editingPerson?.avatar || null };
+    if (editingPerson) updatePerson(editingPerson.id, personData);
+    else addPerson(personData);
     setShowPersonForm(false);
     setEditingPerson(null);
-    setPersonName('');
-    setPersonPhone('');
-    setPersonUpiId('');
-    setPersonContactId(null);
+    setPersonName(''); setPersonPhone(''); setPersonUpiId(''); setPersonContactId(null);
   };
 
   const handleDeletePerson = () => {
@@ -153,7 +145,7 @@ export function GroupsView() {
         </div>
       </div>
 
-      {/* People Row — click to edit/delete */}
+      {/* People Row */}
       {otherPeople.length > 0 && (
         <div className="people-section">
           <div className="people-row">
@@ -161,9 +153,7 @@ export function GroupsView() {
               const bal = getBalance(p.id);
               return (
                 <div key={p.id} className="avatar-chip clickable" onClick={() => openPersonForm(p)}>
-                  {p.avatar ? (
-                    <img src={p.avatar} className="avatar-sm" alt={p.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
-                  ) : null}
+                  {p.avatar ? <img src={p.avatar} className="avatar-sm" alt={p.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} /> : null}
                   <div className="avatar-sm" style={{ background: p.color, display: p.avatar ? 'none' : 'flex' }}>{p.initials}</div>
                   <div className="chip-info">
                     <span className="chip-name">
@@ -191,7 +181,7 @@ export function GroupsView() {
           {groups.map((g) => {
             const bal = getPersonBalance('self', g.id);
             return (
-              <div key={g.id} className="group-card" onClick={() => setSelectedGroupId(g.id)}>
+              <div key={g.id} className="group-card" onClick={async () => { await hapticLight(); setSelectedGroupId(g.id); }}>
                 <div className="group-icon">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
@@ -224,9 +214,7 @@ export function GroupsView() {
                 {otherPeople.map((p) => (
                   <label key={p.id} className="member-checkbox">
                     <input type="checkbox" checked={selectedMembers.includes(p.id)} onChange={() => toggleMember(p.id)} />
-                    {p.avatar ? (
-                      <img src={p.avatar} className="avatar-sm" alt={p.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
-                    ) : null}
+                    {p.avatar ? <img src={p.avatar} className="avatar-sm" alt={p.name} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} /> : null}
                     <div className="avatar-sm" style={{ background: p.color, display: p.avatar ? 'none' : 'flex' }}>{p.initials}</div>
                     <span>{p.name}</span>
                   </label>
@@ -242,53 +230,21 @@ export function GroupsView() {
       </Modal>
 
       {/* Add / Edit Person Modal */}
-      <Modal 
-        isOpen={showPersonForm} 
-        onClose={() => { setShowPersonForm(false); setEditingPerson(null); }} 
-        title={editingPerson ? 'Edit Person' : 'Add Person'}
-        className="modal-small"
-      >
+      <Modal isOpen={showPersonForm} onClose={() => { setShowPersonForm(false); setEditingPerson(null); }} title={editingPerson ? 'Edit Person' : 'Add Person'} className="modal-small">
         <div className="mode-toggle">
-          <button 
-            type="button"
-            className={`mode-btn ${mode === 'manual' ? 'active' : ''}`}
-            onClick={() => setMode('manual')}
-          >
-            Manual
-          </button>
-          <button 
-            type="button"
-            className={`mode-btn ${mode === 'contacts' ? 'active' : ''}`}
-            onClick={handleContactsMode}
-          >
-            From Contacts
-          </button>
+          <button type="button" className={`mode-btn ${mode === 'manual' ? 'active' : ''}`} onClick={() => setMode('manual')}>Manual</button>
+          <button type="button" className={`mode-btn ${mode === 'contacts' ? 'active' : ''}`} onClick={handleContactsMode}>From Contacts</button>
         </div>
-
         {mode === 'contacts' ? (
           <div className="contact-search-container">
-            <input 
-              className="form-input search-input"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search contacts by name..."
-              autoFocus
-            />
+            <input className="form-input search-input" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search contacts by name..." autoFocus />
             <div className="search-results" style={{ maxHeight: '250px' }}>
-              {isSearching ? (
-                <p className="search-status">Searching...</p>
-              ) : searchQuery.length < 2 ? (
-                <p className="search-status">Type at least 2 characters</p>
-              ) : searchResults.length === 0 ? (
-                <p className="search-status">No contacts found</p>
-              ) : (
-                searchResults.map(c => (
+              {isSearching ? <p className="search-status">Searching...</p>
+                : searchQuery.length < 2 ? <p className="search-status">Type at least 2 characters</p>
+                : searchResults.length === 0 ? <p className="search-status">No contacts found</p>
+                : searchResults.map(c => (
                   <div key={c.id} className="search-item" onClick={() => selectContact(c)}>
-                    {c.avatar ? (
-                      <img src={c.avatar} className="avatar-xs" alt={c.name} />
-                    ) : (
-                      <div className="avatar-xs">{c.initials}</div>
-                    )}
+                    {c.avatar ? <img src={c.avatar} className="avatar-xs" alt={c.name} /> : <div className="avatar-xs">{c.initials}</div>}
                     <div className="search-item-info">
                       <div className="search-item-name">{c.name}</div>
                       <div className="search-item-meta">
@@ -297,8 +253,7 @@ export function GroupsView() {
                       </div>
                     </div>
                   </div>
-                ))
-              )}
+                ))}
             </div>
           </div>
         ) : (
@@ -316,22 +271,13 @@ export function GroupsView() {
               <label className="form-label">UPI ID (Optional)</label>
               <input className="form-input" value={personUpiId} onChange={(e) => setPersonUpiId(e.target.value)} placeholder="e.g. name@upi" />
             </div>
-
             {editingPerson && !editingPerson.contactId && (
-              <button 
-                type="button" 
-                className="btn btn-ghost" 
-                style={{ width: '100%', marginBottom: '1rem', border: '1px dashed var(--border-color)' }}
-                onClick={handleContactsMode}
-              >
+              <button type="button" className="btn btn-ghost" style={{ width: '100%', marginBottom: '1rem', border: '1px dashed var(--border-color)' }} onClick={handleContactsMode}>
                 🔗 Link to Contact
               </button>
             )}
-
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-              {editingPerson && (
-                <button type="button" className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>Delete</button>
-              )}
+              {editingPerson && <button type="button" className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>Delete</button>}
               <div style={{ flex: 1 }} />
               <button type="button" className="btn btn-ghost" onClick={() => { setShowPersonForm(false); setEditingPerson(null); }}>Cancel</button>
               <button type="submit" className="btn btn-primary">Save</button>

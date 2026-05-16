@@ -1,31 +1,39 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '../../components/ui/Modal';
+import { SelectPicker } from '../../components/ui/SelectPicker';
 import { CATEGORIES } from '../../services/categories';
 import useStore from '../../store/useStore';
 import { formatCurrency } from '../../utils/formatters';
 
 export function GroupExpenseForm({ groupId, expense, onClose }) {
-  const groups = useStore((s) => s.groups);
-  const getPersonById = useStore((s) => s.getPersonById);
-  const getGroupById = useStore((s) => s.getGroupById);
-  const addGroupExpense = useStore((s) => s.addGroupExpense);
+  const groups            = useStore((s) => s.groups);
+  const addGroupExpense   = useStore((s) => s.addGroupExpense);
   const updateGroupExpense = useStore((s) => s.updateGroupExpense);
+
+  // Fix #3: use getState() for methods that use get() internally
+  const getGroupById  = (id) => useStore.getState().getGroupById(id);
+  const getPersonById = (id) => useStore.getState().getPersonById(id);
 
   const isEditing = !!expense;
 
   const [selectedGroupId, setSelectedGroupId] = useState(groupId || expense?.groupId || '');
-  const [description, setDescription] = useState(expense?.description || '');
-  const [amount, setAmount] = useState(expense?.amount || '');
-  const [paidBy, setPaidBy] = useState(expense?.paidBy || 'self');
-  const [date, setDate] = useState(expense?.date || new Date().toISOString().split('T')[0]);
-  const [category, setCategory] = useState(expense?.category || 'food');
-  const [splitMethod, setSplitMethod] = useState(expense?.splitMethod || 'equal');
-  const [splitValues, setSplitValues] = useState({});
-  const [validationMsg, setValidationMsg] = useState('');
+  const [description, setDescription]         = useState(expense?.description || '');
+  const [amount, setAmount]                   = useState(expense?.amount || '');
+  const [paidBy, setPaidBy]                   = useState(expense?.paidBy || 'self');
+  const [date, setDate]                       = useState(expense?.date || new Date().toISOString().split('T')[0]);
+  const [category, setCategory]               = useState(expense?.category || 'food');
+  const [splitMethod, setSplitMethod]         = useState(expense?.splitMethod || 'equal');
+  const [splitValues, setSplitValues]         = useState({});
+  const [validationMsg, setValidationMsg]     = useState('');
 
-  const group = getGroupById(selectedGroupId);
+  const group   = getGroupById(selectedGroupId);
   const members = group?.memberIds || [];
-  const amt = parseFloat(amount) || 0;
+  const amt     = parseFloat(amount) || 0;
+
+  // Equal split per person — Fix #8: always show calculated amount
+  const equalShare = members.length > 0 && amt > 0
+    ? Math.round((amt / members.length) * 100) / 100
+    : 0;
 
   useEffect(() => {
     if (!group) return;
@@ -61,7 +69,6 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!selectedGroupId || !description.trim() || !amt || !isValid) return;
-
     let splits = [];
     if (splitMethod === 'equal') {
       const share = amt / members.length;
@@ -71,42 +78,29 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
     } else if (splitMethod === 'percent') {
       splits = members.map((id) => ({ personId: id, share: amt * ((parseFloat(splitValues[id]) || 0) / 100) }));
     }
-
-    const data = {
-      groupId: selectedGroupId,
-      description: description.trim(),
-      amount: amt,
-      paidBy,
-      date,
-      splitMethod,
-      splits,
-      category,
-    };
-
-    if (isEditing) {
-      updateGroupExpense(expense.id, data);
-    } else {
-      // Store's addGroupExpense handles personal transaction sync automatically
-      // Do NOT call addTransaction here — it would create a duplicate
-      addGroupExpense(data);
-    }
+    const data = { groupId: selectedGroupId, description: description.trim(), amount: amt, paidBy, date, splitMethod, splits, category };
+    if (isEditing) updateGroupExpense(expense.id, data);
+    else addGroupExpense(data);
     onClose();
   };
 
-  const updateSplitValue = (personId, val) => {
-    setSplitValues((prev) => ({ ...prev, [personId]: val }));
-  };
+  const updateSplitValue = (personId, val) => setSplitValues((prev) => ({ ...prev, [personId]: val }));
+
+  const groupOptions   = groups.map((g) => ({ value: g.id, label: g.name, emoji: '📂' }));
+  const categoryOptions = CATEGORIES.expense.map((c) => ({ value: c.id, label: c.name, emoji: c.emoji }));
+  const paidByOptions  = members.map((id) => {
+    const p = getPersonById(id);
+    return { value: id, label: p?.name || id, emoji: id === 'self' ? '👤' : undefined };
+  });
 
   return (
     <Modal isOpen onClose={onClose} title={isEditing ? 'Edit Expense' : 'Add Group Expense'} className="modal-large">
       <form onSubmit={handleSubmit}>
+
         {!groupId && (
           <div className="form-group">
             <label className="form-label">Group</label>
-            <select className="form-select" value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} required>
-              <option value="">Select a group...</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
+            <SelectPicker value={selectedGroupId} onChange={setSelectedGroupId} options={groupOptions} placeholder="Select a group..." />
           </div>
         )}
 
@@ -122,12 +116,7 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
           </div>
           <div className="form-group">
             <label className="form-label">Paid By</label>
-            <select className="form-select" value={paidBy} onChange={(e) => setPaidBy(e.target.value)} required>
-              {members.map((id) => {
-                const p = getPersonById(id);
-                return <option key={id} value={id}>{p?.name || id}</option>;
-              })}
-            </select>
+            <SelectPicker value={paidBy} onChange={setPaidBy} options={paidByOptions} placeholder="Who paid?" />
           </div>
           <div className="form-group">
             <label className="form-label">Date</label>
@@ -135,9 +124,7 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
           </div>
           <div className="form-group">
             <label className="form-label">Category</label>
-            <select className="form-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-              {CATEGORIES.expense.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
-            </select>
+            <SelectPicker value={category} onChange={setCategory} options={categoryOptions} placeholder="Select category..." />
           </div>
         </div>
 
@@ -159,9 +146,10 @@ export function GroupExpenseForm({ groupId, expense, onClose }) {
                 <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <div className="avatar-sm" style={{ background: p.color }}>{p.initials}</div>
                   <span style={{ fontSize: '0.875rem', fontWeight: 500, flex: 1 }}>{p.name}</span>
+                  {/* Fix #8: show calculated equal share instead of "Auto" */}
                   {splitMethod === 'equal' ? (
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      {amt > 0 ? formatCurrency(Math.round((amt / members.length) * 100) / 100) : 'Auto'}
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: equalShare > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      {equalShare > 0 ? formatCurrency(equalShare) : '—'}
                     </span>
                   ) : (
                     <input type="number" step="0.01" min="0"

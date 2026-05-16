@@ -1,7 +1,6 @@
 import useStore from '../../store/useStore';
 import { PendingSmsCard } from '../sms/PendingSmsCard';
 
-// Normalize type from rawSms if missing
 function normalizeType(tx) {
   if (tx.type) return tx.type;
   if (/credited|credit alert/i.test(tx.rawSms || '')) return 'credit';
@@ -11,9 +10,10 @@ function normalizeType(tx) {
 
 export function NotificationsView() {
   const pendingSmsTransactions = useStore((s) => s.pendingSmsTransactions);
-  const smsEnabled = useStore((s) => s.smsEnabled);
+  const smsEnabled             = useStore((s) => s.smsEnabled);
+  // Fix #8/#11: dismiss all
+  const dismissAllPendingSms   = useStore((s) => s.dismissAllPendingSms);
 
-  // UI-level dedup fallback using stable id or amount+date
   const safeList = Object.values(
     pendingSmsTransactions.reduce((acc, tx) => {
       const key = tx.id || `${tx.amount}-${tx.date}`;
@@ -24,11 +24,33 @@ export function NotificationsView() {
 
   return (
     <div style={{ padding: '1rem', maxWidth: 560, margin: '0 auto' }}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontWeight: 700, fontSize: '1.25rem', marginBottom: 4 }}>🔔 Notifications</h2>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-          Transactions detected from your bank SMS
-        </p>
+      {/* Header with Dismiss All */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <div>
+          <h2 style={{ fontWeight: 700, fontSize: '1.25rem', marginBottom: 4 }}>🔔 Notifications</h2>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            Transactions detected from your bank SMS
+          </p>
+        </div>
+        {/* Fix #8/#11: dismiss all button */}
+        {safeList.length > 1 && (
+          <button
+            onClick={dismissAllPendingSms}
+            style={{
+              fontSize: '0.78rem', fontWeight: 600,
+              color: 'var(--accent-red)',
+              background: 'rgba(239,68,68,0.08)',
+              border: '1px solid rgba(239,68,68,0.2)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0.35rem 0.75rem',
+              cursor: 'pointer',
+              flexShrink: 0,
+              marginTop: '0.25rem',
+            }}
+          >
+            Dismiss all
+          </button>
+        )}
       </div>
 
       {!smsEnabled && (

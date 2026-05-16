@@ -8,52 +8,34 @@ import { CategoryDoughnut } from '../../components/charts/CategoryDoughnut';
 import { TrendBarChart } from '../../components/charts/TrendBarChart';
 import { useYTDSavings, isSettlementTxn } from '../../hooks/useYTDSavings';
 import { EmptyState } from '../../components/EmptyState';
+import { hapticLight } from '../../utils/haptics';
 import './Dashboard.css';
 
 export function Dashboard({ onAddTransaction }) {
-  const transactions = useStore((s) => s.getMonthlyTransactions());
+  const transactions    = useStore((s) => s.getMonthlyTransactions());
   const allTransactions = useStore((s) => s.transactions);
-  const selectedMonth = useStore((s) => s.selectedMonth);
-  const prevMonth = useStore((s) => s.prevMonth);
-  const nextMonth = useStore((s) => s.nextMonth);
-  const privacyMode = useStore((s) => s.privacyMode);
-  const budgets = useStore((s) => s.budgets);
-  const groups = useStore((s) => s.groups);
-  const groupExpenses = useStore((s) => s.groupExpenses);
-  const people = useStore((s) => s.people);
-  const navigate = useNavigate();
-  const ytdSavings = useYTDSavings();
+  const selectedMonth   = useStore((s) => s.selectedMonth);
+  const prevMonth       = useStore((s) => s.prevMonth);
+  const nextMonth       = useStore((s) => s.nextMonth);
+  const privacyMode     = useStore((s) => s.privacyMode);
+  const budgets         = useStore((s) => s.budgets);
+  const groups          = useStore((s) => s.groups);
+  const groupExpenses   = useStore((s) => s.groupExpenses);
+  const people          = useStore((s) => s.people);
+  const savingsTarget   = useStore((s) => s.savingsTarget); // Fix #12
+  const navigate        = useNavigate();
+  const ytdSavings      = useYTDSavings();
 
-  // ── Summary calculations (no per-row scaling — just clean aggregation) ──
   const summary = useMemo(() => {
-    const income = transactions
-      .filter((t) => t.type === 'income' && !isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-
-    const grossExpense = transactions
-      .filter((t) => t.type === 'expense' && !isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-
-    const settlementIncome = transactions
-      .filter((t) => t.type === 'income' && isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-
-    const sentSettlements = transactions
-      .filter((t) => t.type === 'expense' && isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-
-    // Net expense = gross expense minus received settlements + sent settlements
+    const income = transactions.filter((t) => t.type === 'income' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const grossExpense = transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const settlementIncome = transactions.filter((t) => t.type === 'income' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const sentSettlements = transactions.filter((t) => t.type === 'expense' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
     const expenses = grossExpense - settlementIncome + sentSettlements;
     const balance = income - expenses;
     const savingsRate = income > 0 ? Math.round(((income - expenses) / income) * 100) : 0;
-
-    const incomeSources = new Set(
-      transactions.filter((t) => t.type === 'income' && !isSettlementTxn(t)).map((t) => t.category)
-    ).size;
-    const expenseCategories = new Set(
-      transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).map((t) => t.category)
-    ).size;
-
+    const incomeSources = new Set(transactions.filter((t) => t.type === 'income' && !isSettlementTxn(t)).map((t) => t.category)).size;
+    const expenseCategories = new Set(transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).map((t) => t.category)).size;
     return { income, expenses, balance, savingsRate, incomeSources, expenseCategories };
   }, [transactions]);
 
@@ -62,40 +44,21 @@ export function Dashboard({ onAddTransaction }) {
     pm.setMonth(pm.getMonth() - 1);
     const key = getMonthKey(pm);
     const prevTxns = allTransactions.filter((t) => t.date.startsWith(key));
-
-    const prevIncome = prevTxns
-      .filter((t) => t.type === 'income' && !isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-    const prevGrossExpense = prevTxns
-      .filter((t) => t.type === 'expense' && !isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-    const prevSettlementIncome = prevTxns
-      .filter((t) => t.type === 'income' && isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-    const prevSentSettlements = prevTxns
-      .filter((t) => t.type === 'expense' && isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-
-    const prevExpenses = prevGrossExpense - prevSettlementIncome + prevSentSettlements;
-
-    return {
-      income: prevIncome,
-      expenses: prevExpenses,
-      balance: prevIncome - prevExpenses,
-      hasData: prevTxns.length > 0,
-    };
+    const prevIncome = prevTxns.filter((t) => t.type === 'income' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const prevGross = prevTxns.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const prevSetInc = prevTxns.filter((t) => t.type === 'income' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const prevSetExp = prevTxns.filter((t) => t.type === 'expense' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const prevExpenses = prevGross - prevSetInc + prevSetExp;
+    return { income: prevIncome, expenses: prevExpenses, balance: prevIncome - prevExpenses, hasData: prevTxns.length > 0 };
   }, [selectedMonth, allTransactions]);
 
   const trend = summary.balance - prevMonthData.balance;
   const recentTxns = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
-  // Budget uses raw (non-settlement) expense amounts per category
   const budgetData = useMemo(() => {
     return CATEGORIES.expense
       .map((cat) => {
-        const spent = transactions
-          .filter((t) => t.type === 'expense' && !isSettlementTxn(t) && t.category === cat.id)
-          .reduce((s, t) => s + t.amount, 0);
+        const spent = transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t) && t.category === cat.id).reduce((s, t) => s + t.amount, 0);
         const limit = budgets[cat.id] || 0;
         const pct = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
         return { ...cat, spent, limit, pct };
@@ -106,23 +69,16 @@ export function Dashboard({ onAddTransaction }) {
 
   const groupsData = useMemo(() => {
     const store = useStore.getState();
-    return groups.map((g) => ({
-      ...g,
-      balance: store.getPersonBalanceInGroup('self', g.id),
-    }));
+    return groups.map((g) => ({ ...g, balance: store.getPersonBalanceInGroup('self', g.id) }));
   }, [groups, groupExpenses]);
 
-  const globalBalance = useMemo(
-    () => useStore.getState().getGlobalBalance('self'),
-    [groups, groupExpenses]
-  );
+  const globalBalance = useMemo(() => useStore.getState().getGlobalBalance('self'), [groups, groupExpenses]);
 
   const mySettlements = useMemo(() => {
     const all = useStore.getState().getAllSettlements();
     return all.filter((t) => t.from === 'self' || t.to === 'self');
   }, [groups, groupExpenses]);
 
-  // Insight: top spending category vs last month
   const insight = useMemo(() => {
     const expenses = transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t));
     if (expenses.length === 0) return null;
@@ -132,18 +88,13 @@ export function Dashboard({ onAddTransaction }) {
     if (sorted.length === 0) return null;
     const [topCatId, topCatAmount] = sorted[0];
     const cat = getCategory('expense', topCatId);
-    const pm = new Date(selectedMonth);
-    pm.setMonth(pm.getMonth() - 1);
+    const pm = new Date(selectedMonth); pm.setMonth(pm.getMonth() - 1);
     const pmKey = getMonthKey(pm);
-    const prevCatSpend = allTransactions
-      .filter((t) => t.date.startsWith(pmKey) && t.type === 'expense' && t.category === topCatId && !isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
+    const prevCatSpend = allTransactions.filter((t) => t.date.startsWith(pmKey) && t.type === 'expense' && t.category === topCatId && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
     if (prevCatSpend > 0) {
       const diff = topCatAmount - prevCatSpend;
       const pct = Math.round(Math.abs(diff / prevCatSpend) * 100);
-      return diff > 0
-        ? `You spent ${pct}% more on ${cat.name} compared to last month.`
-        : `You spent ${pct}% less on ${cat.name} compared to last month.`;
+      return diff > 0 ? `You spent ${pct}% more on ${cat.name} compared to last month.` : `You spent ${pct}% less on ${cat.name} compared to last month.`;
     }
     return `Your top spending category this month is ${cat.name} at ${formatCurrency(topCatAmount)}.`;
   }, [transactions, selectedMonth, allTransactions]);
@@ -151,9 +102,20 @@ export function Dashboard({ onAddTransaction }) {
   const blur = privacyMode ? 'private-blur' : '';
   const getPersonById = (id) => people.find((p) => p.id === id);
 
+  const goToGroup = async (groupId) => {
+    await hapticLight();
+    navigate('/groups', { state: { openGroupId: groupId } });
+  };
+
+  // Fix #12: savings rate color based on user-set target
+  const savingsRateColor = summary.savingsRate >= savingsTarget
+    ? 'var(--accent-green)'
+    : summary.savingsRate >= savingsTarget * 0.7
+    ? 'var(--text-primary)'
+    : 'var(--accent-red)';
+
   return (
     <div className="dashboard animate-in">
-      {/* Month Nav */}
       <div className="month-nav glass">
         <button className="month-arrow" onClick={prevMonth}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
@@ -166,7 +128,6 @@ export function Dashboard({ onAddTransaction }) {
 
       <p className="greeting">{getGreeting()}, here's your overview.</p>
 
-      {/* Summary Cards */}
       <div className="summary-grid">
         <div className="summary-card animate-bounce">
           <div className="card-label">Total Balance</div>
@@ -187,10 +148,11 @@ export function Dashboard({ onAddTransaction }) {
           <div className={`card-amount expense ${blur}`}>{formatCurrency(summary.expenses)}</div>
           <div className="card-sub">in {summary.expenseCategories} categor{summary.expenseCategories !== 1 ? 'ies' : 'y'}</div>
         </div>
+        {/* Fix #12: color based on savingsTarget, show actual target */}
         <div className="summary-card animate-bounce">
           <div className="card-label">Savings Rate</div>
-          <div className={`card-amount ${blur}`}>{summary.savingsRate}%</div>
-          <div className="card-sub">Target: 30%</div>
+          <div className={`card-amount ${blur}`} style={{ color: savingsRateColor }}>{summary.savingsRate}%</div>
+          <div className="card-sub">Target: {savingsTarget}%</div>
         </div>
         <div className="summary-card animate-bounce">
           <div className="card-label">Yearly Savings (YTD)</div>
@@ -201,7 +163,6 @@ export function Dashboard({ onAddTransaction }) {
         </div>
       </div>
 
-      {/* Middle Row */}
       <div className="dashboard-middle">
         <div className="chart-card animate-bounce" style={{ flex: 2 }}>
           <h3 className="card-title">Cash Flow Overview</h3>
@@ -232,9 +193,7 @@ export function Dashboard({ onAddTransaction }) {
         </div>
       </div>
 
-      {/* Bottom Row */}
       <div className="dashboard-bottom">
-        {/* My Groups */}
         <div className="card">
           <div className="card-header-split">
             <h3 className="card-title">My Groups</h3>
@@ -251,7 +210,7 @@ export function Dashboard({ onAddTransaction }) {
           ) : (
             <div className="txn-list">
               {groupsData.slice(0, 3).map((g) => (
-                <div key={g.id} className="txn-item" onClick={() => navigate('/groups')}>
+                <div key={g.id} className="txn-item" style={{ cursor: 'pointer' }} onClick={() => goToGroup(g.id)}>
                   <div className="group-icon-sm">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
                   </div>
@@ -259,8 +218,13 @@ export function Dashboard({ onAddTransaction }) {
                     <div className="txn-desc">{g.name}</div>
                     <div className="txn-meta">{g.memberIds.length} members</div>
                   </div>
-                  <div className={`txn-amount ${g.balance > 0.01 ? 'income' : g.balance < -0.01 ? 'expense' : ''} ${blur}`} style={{ fontSize: '0.8rem' }}>
-                    {g.balance > 0.01 ? `+${formatCurrency(g.balance)}` : g.balance < -0.01 ? `-${formatCurrency(Math.abs(g.balance))}` : 'Settled'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <div className={`txn-amount ${g.balance > 0.01 ? 'income' : g.balance < -0.01 ? 'expense' : ''} ${blur}`} style={{ fontSize: '0.8rem' }}>
+                      {g.balance > 0.01 ? `+${formatCurrency(g.balance)}` : g.balance < -0.01 ? `-${formatCurrency(Math.abs(g.balance))}` : 'Settled'}
+                    </div>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" style={{ opacity: 0.5 }}>
+                      <path d="M9 18l6-6-6-6"/>
+                    </svg>
                   </div>
                 </div>
               ))}
@@ -268,7 +232,6 @@ export function Dashboard({ onAddTransaction }) {
           )}
         </div>
 
-        {/* Recent Transactions */}
         <div className="card">
           <div className="card-header-split">
             <h3 className="card-title">Recent Transactions</h3>
@@ -297,7 +260,6 @@ export function Dashboard({ onAddTransaction }) {
           )}
         </div>
 
-        {/* Pending Settlements */}
         <div className="card">
           <div className="card-header-split">
             <h3 className="card-title">Pending Settlements</h3>
@@ -309,8 +271,8 @@ export function Dashboard({ onAddTransaction }) {
             <div className="txn-list">
               {mySettlements.slice(0, 4).map((t, i) => {
                 const fromP = getPersonById(t.from);
-                const toP = getPersonById(t.to);
-                const g = groups.find((gr) => gr.id === t.groupId);
+                const toP   = getPersonById(t.to);
+                const g     = groups.find((gr) => gr.id === t.groupId);
                 const isYouOwe = t.from === 'self';
                 return (
                   <div key={i} className="txn-item" onClick={() => navigate('/settle-up')}>
@@ -318,9 +280,7 @@ export function Dashboard({ onAddTransaction }) {
                       {(isYouOwe ? toP : fromP)?.initials || '?'}
                     </div>
                     <div className="txn-details">
-                      <div className="txn-desc">
-                        {isYouOwe ? `You owe ${toP?.name}` : `${fromP?.name} owes you`}
-                      </div>
+                      <div className="txn-desc">{isYouOwe ? `You owe ${toP?.name}` : `${fromP?.name} owes you`}</div>
                       <div className="txn-meta">{g?.name}</div>
                     </div>
                     <div className={`txn-amount ${isYouOwe ? 'expense' : 'income'} ${blur}`} style={{ fontSize: '0.8rem' }}>
@@ -333,7 +293,6 @@ export function Dashboard({ onAddTransaction }) {
           )}
         </div>
 
-        {/* Budget Status */}
         <div className="card">
           <div className="card-header-split">
             <h3 className="card-title">Budget Status</h3>

@@ -7,33 +7,29 @@ import { SECURITY_QUESTIONS } from '../../services/categories';
 import './SettingsView.css';
 
 export function SettingsView({ showToast }) {
-  const resetAll               = useStore((s) => s.resetAll);
-  const exportData             = useStore((s) => s.exportData);
-  const importData             = useStore((s) => s.importData);
-  const transactions           = useStore((s) => s.transactions);
-  const privacyMode            = useStore((s) => s.privacyMode);
-  const togglePrivacy          = useStore((s) => s.togglePrivacy);
-  const smsEnabled             = useStore((s) => s.smsEnabled);
-  const setSmsEnabled          = useStore((s) => s.setSmsEnabled);
-  const bgServiceEnabled       = useStore((s) => s.bgServiceEnabled);
-  const toggleBgService        = useStore((s) => s.toggleBgService);
-  const biometricsEnabled      = useStore((s) => s.biometricsEnabled);
-  const setBiometricsEnabled   = useStore((s) => s.setBiometricsEnabled);
-  const isBiometricAvailable   = useStore((s) => s.isBiometricAvailable);
-  const budgetAlertsEnabled    = useStore((s) => s.budgetAlertsEnabled);
-  const setBudgetAlertsEnabled = useStore((s) => s.setBudgetAlertsEnabled);
-  const settlementAlertsEnabled    = useStore((s) => s.settlementAlertsEnabled);
-  const setSettlementAlertsEnabled = useStore((s) => s.setSettlementAlertsEnabled);
-  const theme    = useStore((s) => s.theme);
-  const setTheme = useStore((s) => s.setTheme);
-
-  const userUpiId            = useStore((s) => s.userUpiId);
-  const setUserUpiId         = useStore((s) => s.setUserUpiId);
+  const resetAll = useStore((s) => s.resetAll);
+  const exportData = useStore((s) => s.exportData);
+  const importData = useStore((s) => s.importData);
+  const transactions = useStore((s) => s.transactions);
+  const privacyMode = useStore((s) => s.privacyMode);
+  const togglePrivacy = useStore((s) => s.togglePrivacy);
+  const smsEnabled = useStore((s) => s.smsEnabled);
+  const setSmsEnabled = useStore((s) => s.setSmsEnabled);
+  const bgServiceEnabled = useStore((s) => s.bgServiceEnabled);
+  const toggleBgService = useStore((s) => s.toggleBgService);
+  const biometricsEnabled = useStore((s) => s.biometricsEnabled);
+  const setBiometricsEnabled = useStore((s) => s.setBiometricsEnabled);
+  const isBiometricAvailable = useStore((s) => s.isBiometricAvailable);
+  const savingsTarget = useStore((s) => s.savingsTarget ?? 30);
+  const setSavingsTarget = useStore((s) => s.setSavingsTarget);
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [showSecQModal, setShowSecQModal] = useState(false);
-  const [showUpiModal, setShowUpiModal] = useState(false);
+  const [budgetAlerts, setBudgetAlerts] = useState(true);
+  const [settlementReminders, setSettlementReminders] = useState(true);
+  const theme = useStore((s) => s.theme);
+  const setTheme = useStore((s) => s.setTheme);
 
   // Change PIN state
   const [currentPin, setCurrentPin] = useState('');
@@ -41,15 +37,13 @@ export function SettingsView({ showToast }) {
   const [confirmPin, setConfirmPin] = useState('');
   const [pinError, setPinError] = useState('');
 
-  // UPI ID state
-  const [tempUpiId, setTempUpiId] = useState(userUpiId);
-
   // Security Question state
   const [secQIndex, setSecQIndex] = useState(storage.getSecQIndex() || '0');
   const [secQAnswer, setSecQAnswer] = useState('');
 
   const fileRef = useRef(null);
 
+  // Storage info
   const storageUsed = useMemo(() => {
     let total = 0;
     Object.keys(localStorage).forEach((k) => {
@@ -105,22 +99,17 @@ export function SettingsView({ showToast }) {
       setPinError("New PINs don't match");
       return;
     }
+    const currentHash = await hashPin(currentPin);
     const storedHash = storage.getPinHash();
-    // Require current PIN verification only if one is already set
-    if (storedHash) {
-      const currentHash = await hashPin(currentPin);
-      if (currentHash !== storedHash) {
-        setPinError('Current PIN is incorrect');
-        return;
-      }
+    if (storedHash && currentHash !== storedHash) {
+      setPinError('Current PIN is incorrect');
+      return;
     }
     const newHash = await hashPin(newPin);
     storage.savePinHash(newHash);
-    // Clear old security question so the lock screen doesn't have stale recovery data
-    storage.removeSecQ();
     setShowChangePinModal(false);
     setCurrentPin(''); setNewPin(''); setConfirmPin('');
-    showToast?.('PIN updated — please set a new security question');
+    showToast?.('PIN updated successfully');
   };
 
   const handleSaveSecQ = async (e) => {
@@ -154,16 +143,6 @@ export function SettingsView({ showToast }) {
             </div>
             <span className="settings-chevron">›</span>
           </button>
-          <button className="settings-item" onClick={() => { setTempUpiId(userUpiId); setShowUpiModal(true); }}>
-            <div className="settings-item-main">
-              <div className="settings-item-icon">💳</div>
-              <div className="settings-item-text">
-                <div className="settings-item-title">Your UPI ID</div>
-                <div className="settings-item-subtitle">{userUpiId || 'Set VPA for payment requests'}</div>
-              </div>
-            </div>
-            <span className="settings-chevron">›</span>
-          </button>
           <button className="settings-item" onClick={() => setShowSecQModal(true)}>
             <div className="settings-item-main">
               <div className="settings-item-icon">❓</div>
@@ -184,11 +163,14 @@ export function SettingsView({ showToast }) {
                 </div>
               </div>
               <label className="toggle-switch">
-                <input type="checkbox" checked={biometricsEnabled}
+                <input
+                  type="checkbox"
+                  checked={biometricsEnabled}
                   onChange={(e) => {
                     setBiometricsEnabled(e.target.checked);
                     showToast?.(e.target.checked ? 'Biometrics enabled' : 'Biometrics disabled');
-                  }} />
+                  }}
+                />
                 <span className="toggle-slider" />
               </label>
             </div>
@@ -218,7 +200,7 @@ export function SettingsView({ showToast }) {
               <div className="settings-item-icon">🌙</div>
               <div className="settings-item-text">
                 <div className="settings-item-title">Theme</div>
-                <div className="settings-item-subtitle">Choose appearance</div>
+                <div className="settings-item-subtitle">Dark mode (Premium)</div>
               </div>
             </div>
             <select className="settings-select" value={theme} onChange={(e) => setTheme(e.target.value)}>
@@ -226,6 +208,32 @@ export function SettingsView({ showToast }) {
               <option value="light">Light</option>
               <option value="auto">Auto</option>
             </select>
+          </div>
+          {/* Savings Target slider */}
+          <div className="settings-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.6rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="settings-item-icon">🎯</div>
+              <div className="settings-item-text">
+                <div className="settings-item-title">Savings Target</div>
+                <div className="settings-item-subtitle">Your monthly savings goal</div>
+              </div>
+              <span style={{ fontWeight: 700, color: 'var(--accent-indigo)', fontSize: '1rem', minWidth: 42, textAlign: 'right' }}>{savingsTarget}%</span>
+              {savingsTarget !== 30 && (
+                <button
+                  onClick={() => setSavingsTarget(30)}
+                  style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}
+                >Reset</button>
+              )}
+            </div>
+            <input
+              type="range" min="5" max="80" step="5"
+              value={savingsTarget}
+              onChange={(e) => setSavingsTarget(parseInt(e.target.value, 10))}
+              style={{ width: '100%', accentColor: 'var(--accent-indigo)' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              <span>5%</span><span>Conservative 20%</span><span>Aggressive 50%</span><span>80%</span>
+            </div>
           </div>
         </div>
       </div>
@@ -277,15 +285,11 @@ export function SettingsView({ showToast }) {
               <div className="settings-item-icon">⚠️</div>
               <div className="settings-item-text">
                 <div className="settings-item-title">Budget Alerts</div>
-                <div className="settings-item-subtitle">Notify when budget limit is reached</div>
+                <div className="settings-item-subtitle">Notify at 80% usage</div>
               </div>
             </div>
             <label className="toggle-switch">
-              <input type="checkbox" checked={budgetAlertsEnabled}
-                onChange={(e) => {
-                  setBudgetAlertsEnabled(e.target.checked);
-                  showToast?.(e.target.checked ? 'Budget alerts enabled' : 'Budget alerts disabled');
-                }} />
+              <input type="checkbox" checked={budgetAlerts} onChange={(e) => setBudgetAlerts(e.target.checked)} />
               <span className="toggle-slider" />
             </label>
           </div>
@@ -294,15 +298,11 @@ export function SettingsView({ showToast }) {
               <div className="settings-item-icon">💸</div>
               <div className="settings-item-text">
                 <div className="settings-item-title">Settlement Reminders</div>
-                <div className="settings-item-subtitle">Remind after 3 days</div>
+                <div className="settings-item-subtitle">Every 3 days</div>
               </div>
             </div>
             <label className="toggle-switch">
-              <input type="checkbox" checked={settlementAlertsEnabled}
-                onChange={(e) => {
-                  setSettlementAlertsEnabled(e.target.checked);
-                  showToast?.(e.target.checked ? 'Settlement reminders enabled' : 'Settlement reminders disabled');
-                }} />
+              <input type="checkbox" checked={settlementReminders} onChange={(e) => setSettlementReminders(e.target.checked)} />
               <span className="toggle-slider" />
             </label>
           </div>
@@ -317,11 +317,14 @@ export function SettingsView({ showToast }) {
               </div>
             </div>
             <label className="toggle-switch">
-              <input type="checkbox" checked={smsEnabled}
+              <input
+                type="checkbox"
+                checked={smsEnabled}
                 onChange={(e) => {
                   setSmsEnabled(e.target.checked);
                   showToast?.(e.target.checked ? 'SMS Auto-capture enabled' : 'SMS Auto-capture disabled');
-                }} />
+                }}
+              />
               <span className="toggle-slider" />
             </label>
           </div>
@@ -334,11 +337,14 @@ export function SettingsView({ showToast }) {
               </div>
             </div>
             <label className="toggle-switch">
-              <input type="checkbox" checked={bgServiceEnabled}
+              <input
+                type="checkbox"
+                checked={bgServiceEnabled}
                 onChange={async () => {
                   await toggleBgService();
                   showToast?.('Background tracking updated');
-                }} />
+                }}
+              />
               <span className="toggle-slider" />
             </label>
           </div>
@@ -349,37 +355,30 @@ export function SettingsView({ showToast }) {
       <div className="settings-card animate-bounce" style={{ animationDelay: '0.5s' }}>
         <h3 className="settings-card-title">ℹ️ About</h3>
         <div className="settings-list">
-          <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Version</div><div className="settings-item-subtitle">v3.3.1 (React)</div></div></div></div>
+          <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Version</div><div className="settings-item-subtitle">v3.3.0 (React)</div></div></div></div>
           <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Storage Used</div><div className="settings-item-subtitle">{storageUsed}</div></div></div></div>
           <div className="settings-item"><div className="settings-item-main"><div className="settings-item-text"><div className="settings-item-title">Total Transactions</div><div className="settings-item-subtitle">{transactions.length}</div></div></div></div>
         </div>
       </div>
 
       {/* Change PIN Modal */}
-      <Modal isOpen={showChangePinModal} onClose={() => { setShowChangePinModal(false); setPinError(''); setCurrentPin(''); setNewPin(''); setConfirmPin(''); }} title="Change PIN">
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
-          Enter your current PIN, then set a new one. Your security question will be cleared and you'll be asked to set a new one.
-        </p>
+      <Modal isOpen={showChangePinModal} onClose={() => { setShowChangePinModal(false); setPinError(''); }} title="Change PIN">
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>Enter your current PIN, then set a new one</p>
         <form onSubmit={handleChangePin}>
-          {storage.hasPinSet() && (
-            <div className="form-group">
-              <label className="form-label">Current PIN</label>
-              <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric"
-                value={currentPin} onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
-                placeholder="Enter current PIN" required />
-            </div>
-          )}
+          <div className="form-group">
+            <label className="form-label">Current PIN</label>
+            <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric" value={currentPin}
+              onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))} placeholder="Enter current PIN" required />
+          </div>
           <div className="form-group">
             <label className="form-label">New PIN</label>
-            <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric"
-              value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-              placeholder="Enter new PIN" required />
+            <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric" value={newPin}
+              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))} placeholder="Enter new PIN" required />
           </div>
           <div className="form-group">
             <label className="form-label">Confirm New PIN</label>
-            <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric"
-              value={confirmPin} onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-              placeholder="Confirm new PIN" required />
+            <input className="form-input pin-input" type="password" maxLength={4} pattern="[0-9]{4}" inputMode="numeric" value={confirmPin}
+              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))} placeholder="Confirm new PIN" required />
           </div>
           {pinError && <p className="pin-error" style={{ marginTop: '0.5rem' }}>{pinError}</p>}
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
@@ -390,7 +389,7 @@ export function SettingsView({ showToast }) {
       </Modal>
 
       {/* Security Question Modal */}
-      <Modal isOpen={showSecQModal} onClose={() => { setShowSecQModal(false); setSecQAnswer(''); }} title="Security Question">
+      <Modal isOpen={showSecQModal} onClose={() => setShowSecQModal(false)} title="Security Question">
         <form onSubmit={handleSaveSecQ}>
           <div className="form-group">
             <label className="form-label">Security Question</label>
@@ -400,41 +399,13 @@ export function SettingsView({ showToast }) {
           </div>
           <div className="form-group" style={{ marginTop: '1rem' }}>
             <label className="form-label">Your Answer</label>
-            <input className="form-input" type="text" value={secQAnswer}
-              onChange={(e) => setSecQAnswer(e.target.value)} placeholder="Enter your answer" required />
+            <input className="form-input" type="text" value={secQAnswer} onChange={(e) => setSecQAnswer(e.target.value)} placeholder="Enter your answer" required />
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
             <button type="button" className="btn btn-ghost" onClick={() => setShowSecQModal(false)}>Cancel</button>
             <button type="submit" className="btn btn-primary">Save</button>
           </div>
         </form>
-      </Modal>
-
-      {/* UPI ID Modal */}
-      <Modal isOpen={showUpiModal} onClose={() => setShowUpiModal(false)} title="Your UPI ID">
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
-          This is used to generate payment request links when friends owe you money.
-        </p>
-        <div className="form-group">
-          <label className="form-label">UPI ID (VPA)</label>
-          <input 
-            className="form-input" 
-            value={tempUpiId} 
-            onChange={(e) => setTempUpiId(e.target.value)} 
-            placeholder="e.g. name@okhdfcbank" 
-            autoFocus
-          />
-        </div>
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
-          <button type="button" className="btn btn-ghost" onClick={() => setShowUpiModal(false)}>Cancel</button>
-          <button 
-            type="button" 
-            className="btn btn-primary" 
-            onClick={() => { setUserUpiId(tempUpiId); setShowUpiModal(false); showToast?.('UPI ID saved'); }}
-          >
-            Save
-          </button>
-        </div>
       </Modal>
 
       <ConfirmModal isOpen={showResetConfirm} onClose={() => setShowResetConfirm(false)} onConfirm={handleReset}

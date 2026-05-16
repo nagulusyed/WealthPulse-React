@@ -3,29 +3,30 @@ import { hashPin, hashSecurityAnswer } from '../../services/crypto';
 import { storage } from '../../services/storage';
 import { SECURITY_QUESTIONS } from '../../services/categories';
 import useStore from '../../store/useStore';
+import { SelectPicker } from '../../components/ui/SelectPicker';
 import './PinLockScreen.css';
 
 const PIN_LENGTH = 4;
 
 export function PinLockScreen() {
-  const setLocked = useStore((s) => s.setLocked);
+  // Fix #2: use setLocked (now exists in store)
+  const setLocked        = useStore((s) => s.setLocked);
   const biometricsEnabled = useStore((s) => s.biometricsEnabled);
-  const verifyBiometrics = useStore((s) => s.verifyBiometrics);
+  const verifyBiometrics  = useStore((s) => s.verifyBiometrics);
 
-  const [pin, setPin] = useState('');
-  const [mode, setMode] = useState(storage.hasPinSet() ? 'enter' : 'create');
-  const [error, setError] = useState('');
-  const [shake, setShake] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [showSecQSetup, setShowSecQSetup] = useState(false);
-  const [showRecovery, setShowRecovery] = useState(false);
-  const [secQIndex, setSecQIndex] = useState('0');
+  const [pin, setPin]               = useState('');
+  const [mode, setMode]             = useState(storage.hasPinSet() ? 'enter' : 'create');
+  const [error, setError]           = useState('');
+  const [shake, setShake]           = useState(false);
+  const [success, setSuccess]       = useState(false);
+  const [showSecQSetup, setShowSecQSetup]   = useState(false);
+  const [showRecovery, setShowRecovery]     = useState(false);
+  const [secQIndex, setSecQIndex]   = useState('0');
   const [secQAnswer, setSecQAnswer] = useState('');
   const [recoveryAnswer, setRecoveryAnswer] = useState('');
 
   const firstPinRef = useRef(null);
 
-  // Auto-trigger biometrics if enabled
   useEffect(() => {
     if (mode === 'enter' && biometricsEnabled) {
       const timer = setTimeout(() => { verifyBiometrics(); }, 500);
@@ -51,7 +52,6 @@ export function PinLockScreen() {
     setTimeout(() => setLocked(false), 500);
   }, [setLocked]);
 
-  // Handle PIN completion
   useEffect(() => {
     if (pin.length !== PIN_LENGTH) return;
     const timer = setTimeout(async () => {
@@ -82,7 +82,6 @@ export function PinLockScreen() {
     return () => clearTimeout(timer);
   }, [pin, mode, doShake, unlock]);
 
-  // Keyboard support
   useEffect(() => {
     const handler = (e) => {
       if (showSecQSetup || showRecovery) return;
@@ -126,6 +125,9 @@ export function PinLockScreen() {
     return null;
   })();
 
+  // Fix #1: SelectPicker options for security questions
+  const secQOptions = SECURITY_QUESTIONS.map((q, i) => ({ value: String(i), label: q }));
+
   if (showSecQSetup) {
     return (
       <div className="lock-screen">
@@ -136,9 +138,13 @@ export function PinLockScreen() {
           <div className="sec-q-form">
             <p className="sec-q-instruction">Set up a security question so you can recover your PIN if you forget it.</p>
             <label className="form-label">Security Question</label>
-            <select className="form-select" value={secQIndex} onChange={(e) => setSecQIndex(e.target.value)}>
-              {SECURITY_QUESTIONS.map((q, i) => <option key={i} value={i}>{q}</option>)}
-            </select>
+            {/* Fix #1: replace native select with SelectPicker */}
+            <SelectPicker
+              value={secQIndex}
+              onChange={setSecQIndex}
+              options={secQOptions}
+              placeholder="Choose a question..."
+            />
             <label className="form-label" style={{ marginTop: '1rem' }}>Your Answer</label>
             <input className="form-input" type="text" value={secQAnswer} onChange={(e) => setSecQAnswer(e.target.value)} placeholder="Type your answer..." />
             {error && <p className="pin-error">{error}</p>}
@@ -202,13 +208,7 @@ export function PinLockScreen() {
         </div>
         {mode === 'enter' && (
           <div className="lock-links">
-            <button className="lock-link" onClick={() => {
-              // Clear PIN and old security question before starting fresh create flow
-              storage.removePinHash();
-              storage.removeSecQ();
-              resetCreateFlow();
-              setError('');
-            }}>Change PIN</button>
+            <button className="lock-link" onClick={() => { storage.removePinHash(); storage.removeSecQ(); resetCreateFlow(); setError(''); }}>Change PIN</button>
             <span className="lock-link-divider">•</span>
             <button className="lock-link" onClick={() => { setShowRecovery(true); setError(''); }}>Forgot PIN?</button>
           </div>

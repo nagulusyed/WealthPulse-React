@@ -36,28 +36,14 @@ function MonthlyTab({ privacyMode }) {
   const budgets = useStore((s) => s.budgets);
 
   const report = useMemo(() => {
-    // Clean aggregation — no per-row scaling
-    const income = transactions
-      .filter((t) => t.type === 'income' && !isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-
-    const grossExpense = transactions
-      .filter((t) => t.type === 'expense' && !isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-
-    const settlementIncome = transactions
-      .filter((t) => t.type === 'income' && isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-
-    const sentSettlements = transactions
-      .filter((t) => t.type === 'expense' && isSettlementTxn(t))
-      .reduce((s, t) => s + t.amount, 0);
-
+    const income = transactions.filter((t) => t.type === 'income' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const grossExpense = transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const settlementIncome = transactions.filter((t) => t.type === 'income' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
+    const sentSettlements = transactions.filter((t) => t.type === 'expense' && isSettlementTxn(t)).reduce((s, t) => s + t.amount, 0);
     const totalSpent = grossExpense - settlementIncome + sentSettlements;
     const savings = income - totalSpent;
     const savingsPct = income > 0 ? Math.round((savings / income) * 100) : 0;
 
-    // Previous month comparison
     const pm = new Date(selectedMonth);
     pm.setMonth(pm.getMonth() - 1);
     const pmKey = getMonthKey(pm);
@@ -68,32 +54,23 @@ function MonthlyTab({ privacyMode }) {
     const prevSpent = prevGross - prevRecSet + prevSentSet;
     const diff = totalSpent - prevSpent;
     const pct = prevSpent > 0 ? Math.round((diff / prevSpent) * 100) : 0;
-
     const daysInMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
     const avgDaily = totalSpent / daysInMonth;
 
-    // Category breakdown using raw (unscaled) amounts
     const catTotals = {};
-    transactions
-      .filter((t) => t.type === 'expense' && !isSettlementTxn(t))
-      .forEach((t) => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
-
-    const categories = Object.entries(catTotals)
-      .sort((a, b) => b[1] - a[1])
-      .map(([catId, amount]) => {
-        const cat = getCategory('expense', catId);
-        const limit = budgets[catId] || 0;
-        const budgetPct = limit > 0 ? Math.min(Math.round((amount / limit) * 100), 100) : 0;
-        const spendPct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
-        return { ...cat, amount, budgetPct, spendPct, limit };
-      });
+    transactions.filter((t) => t.type === 'expense' && !isSettlementTxn(t)).forEach((t) => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
+    const categories = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).map(([catId, amount]) => {
+      const cat = getCategory('expense', catId);
+      const limit = budgets[catId] || 0;
+      const budgetPct = limit > 0 ? Math.min(Math.round((amount / limit) * 100), 100) : 0;
+      const spendPct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
+      return { ...cat, amount, budgetPct, spendPct, limit };
+    });
 
     return { totalSpent, totalIncome: income, savings, savingsPct, diff, pct, avgDaily, categories, topCat: categories[0] };
   }, [transactions, selectedMonth, allTransactions, budgets]);
 
-  if (transactions.length === 0) {
-    return <EmptyState emoji="📊" message="No transactions this month. Start adding expenses to see your monthly report." />;
-  }
+  if (transactions.length === 0) return <EmptyState emoji="📊" message="No transactions this month. Start adding expenses to see your monthly report." />;
 
   return (
     <div>
@@ -110,7 +87,6 @@ function MonthlyTab({ privacyMode }) {
           </div>
         ))}
       </div>
-
       {report.topCat && (
         <InsightCard accent={report.topCat.color}>
           <div style={{ fontSize:'0.72rem', color:'var(--text-muted)', marginBottom:'0.3rem' }}>💡 Top Spend This Month</div>
@@ -120,7 +96,6 @@ function MonthlyTab({ privacyMode }) {
           </p>
         </InsightCard>
       )}
-
       <div className="card">
         <div style={{ fontWeight:600, fontSize:'0.85rem', marginBottom:'0.85rem' }}>Spending by Category</div>
         <div style={{ display:'flex', flexDirection:'column', gap:'0.8rem' }}>
@@ -199,7 +174,6 @@ function BurnRateTab({ burnRate, privacyMode }) {
           <div style={{ height:6, background:'var(--border-subtle)', borderRadius:3, overflow:'hidden' }}>
             <div style={{ height:'100%', width:`${progressPct}%`, background: progressPct > 80 ? '#e74c3c' : progressPct > 60 ? '#f59e0b' : '#2ecc71', borderRadius:3, transition:'width 0.6s ease' }} />
           </div>
-          <div style={{ fontSize:'0.68rem', color:'var(--text-muted)', marginTop:'0.2rem' }}>{progressPct}% of monthly budget used</div>
         </div>
         {!isOnTrack && (
           <div style={{ marginTop:'0.6rem' }}>
@@ -218,8 +192,10 @@ function BurnRateTab({ burnRate, privacyMode }) {
       </div>
       <InsightCard accent="var(--accent-indigo)">
         <div style={{ fontSize:'0.83rem', lineHeight:1.65, color:'var(--text-secondary)' }}>
-          {isOnTrack ? <>Great discipline! At <span className={blur} style={{ fontWeight:600, color:'var(--text-primary)' }}>{formatCurrency(dailyBurn)}/day</span>, you'll finish the month within budget. You can spend up to <span className={blur} style={{ fontWeight:600, color:'var(--accent-green)' }}>{formatCurrency(safeDaily)}/day</span>.</>
-          : <>At <span className={blur} style={{ fontWeight:600, color:'var(--accent-red)' }}>{formatCurrency(dailyBurn)}/day</span>, you'll overshoot by <span className={blur} style={{ fontWeight:600, color:'var(--accent-red)' }}>{formatCurrency(overageAmount)}</span>.{exhaustDateStr && <> Budget runs out around <strong>{exhaustDateStr}</strong>.</>} Stay under <span className={blur} style={{ fontWeight:600, color:'var(--accent-green)' }}>{formatCurrency(safeDaily)}/day</span> for the remaining {daysLeft} days.</>}
+          {isOnTrack
+            ? <>Great discipline! At <span className={blur} style={{ fontWeight:600, color:'var(--text-primary)' }}>{formatCurrency(dailyBurn)}/day</span>, you'll finish within budget. You can spend up to <span className={blur} style={{ fontWeight:600, color:'var(--accent-green)' }}>{formatCurrency(safeDaily)}/day</span>.</>
+            : <>At <span className={blur} style={{ fontWeight:600, color:'var(--accent-red)' }}>{formatCurrency(dailyBurn)}/day</span>, you'll overshoot by <span className={blur} style={{ fontWeight:600, color:'var(--accent-red)' }}>{formatCurrency(overageAmount)}</span>.{exhaustDateStr && <> Budget runs out around <strong>{exhaustDateStr}</strong>.</>} Stay under <span className={blur} style={{ fontWeight:600, color:'var(--accent-green)' }}>{formatCurrency(safeDaily)}/day</span> for the remaining {daysLeft} days.</>
+          }
         </div>
       </InsightCard>
     </div>
@@ -307,20 +283,35 @@ export function InsightsView() {
   const [activeTab, setActiveTab] = useState('monthly');
   const privacyMode = useStore((s) => s.privacyMode);
   const selectedMonth = useStore((s) => s.selectedMonth);
+  // Fix #6: wire up month navigation
+  const prevMonth = useStore((s) => s.prevMonth);
+  const nextMonth = useStore((s) => s.nextMonth);
+
   const { vendors, burnRate, anomalies, subscriptions, subscriptionYearlyTotal, hasData } = useInsights();
 
   const tabs = [
-    { id:'monthly', label:'Monthly', emoji:'📊', badge:0 },
-    { id:'vendors', label:'Vendors', emoji:'🔍', badge:0 },
-    { id:'burnrate', label:'Forecast', emoji:'📈', badge:0 },
-    { id:'anomalies', label:'Alerts', emoji:'📉', badge:anomalies.length },
-    { id:'subscriptions', label:'Subscriptions', emoji:'📆', badge:subscriptions.length },
+    { id:'monthly',       label:'Monthly',       emoji:'📊', badge:0 },
+    { id:'vendors',       label:'Vendors',        emoji:'🔍', badge:0 },
+    { id:'burnrate',      label:'Forecast',       emoji:'📈', badge:0 },
+    { id:'anomalies',     label:'Alerts',         emoji:'📉', badge:anomalies.length },
+    { id:'subscriptions', label:'Subscriptions',  emoji:'📆', badge:subscriptions.length },
   ];
 
   return (
     <div className="animate-in" style={{ maxWidth:700, margin:'0 auto' }}>
       <h2 className="view-title">Reports & Insights</h2>
-      <p style={{ fontSize:'0.78rem', color:'var(--text-muted)', marginBottom:'1rem' }}>{formatMonthLabel(selectedMonth)}</p>
+
+      {/* Fix #6: Month navigation — same as Dashboard and BudgetView */}
+      <div className="month-nav" style={{ marginBottom: '1rem' }}>
+        <button className="month-arrow" onClick={prevMonth}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span className="month-label">{formatMonthLabel(selectedMonth)}</span>
+        <button className="month-arrow" onClick={nextMonth}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+
       {!hasData ? (
         <div className="card" style={{ textAlign:'center', padding:'3rem 1rem' }}>
           <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>🌱</div>

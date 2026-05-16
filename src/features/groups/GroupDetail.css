@@ -1,0 +1,53 @@
+/* Fix #14: safe-area-aware undo toast + Fix #15: tab transition in GroupDetail */
+
+/* ── Undo Toast — Fix #14 ── */
+.settle-undo-toast {
+  position: fixed;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-elevated, #1e1e2e);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 1rem 0.75rem 1.25rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  z-index: 1000;
+  animation: toast-in 0.25s ease;
+  white-space: nowrap;
+  max-width: calc(100vw - 2rem);
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.settle-undo-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.settle-undo-btn {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent-indigo);
+  background: rgba(99,102,241,0.12);
+  border: 1.5px solid rgba(99,102,241,0.3);
+  border-radius: var(--radius-sm);
+  padding: 4px 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.settle-undo-btn:hover { background: rgba(99,102,241,0.22); }
+
+/* ── Fix #15: GroupDetail tab content fade transition ── */
+.group-tab-content {
+  animation: tabFadeIn 0.18s ease;
+}
+@keyframes tabFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
